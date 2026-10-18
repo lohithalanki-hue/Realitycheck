@@ -1,0 +1,6 @@
+{
+  "name": "RealityCheck",
+  "description": "Personal behaviour analytics platform measuring the Intention–Action gap with deterministic metrics, time tracking, and pattern detection.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
