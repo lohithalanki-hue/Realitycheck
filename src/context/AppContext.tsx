@@ -29,6 +29,7 @@ import {
   saveUserPreferences,
   subscribeToStore,
 } from '../lib/storage';
+import { soundEffects } from '../lib/sound';
 import {
   ActiveTimerState,
   ActivityLog,
@@ -60,6 +61,7 @@ interface AppContextType {
   setSelectedDate: (d: string) => void;
   preferences: UserPreferences;
   updatePreferences: (prefs: Partial<UserPreferences>) => void;
+  toggleSound: () => void;
 
   // Data
   tasks: Task[];
@@ -90,7 +92,14 @@ interface AppContextType {
 
   // Timer
   activeTimer: ActiveTimerState | null;
-  startTimer: (title: string, category: CategoryType, taskId?: string | null, isUnplanned?: boolean) => void;
+  startTimer: (
+    title: string,
+    category: CategoryType,
+    taskId?: string | null,
+    isUnplanned?: boolean,
+    mode?: 'stopwatch' | 'pomodoro',
+    targetMinutes?: number
+  ) => void;
   pauseTimer: () => void;
   resumeTimer: () => void;
   addTimerInterruption: () => void;
@@ -186,15 +195,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const interval = setInterval(() => {
       setActiveTimer((curr) => {
         if (!curr || !curr.isRunning) return curr;
+        const nextSeconds = curr.elapsedSeconds + 1;
+        if (
+          curr.mode === 'pomodoro' &&
+          curr.targetDurationMinutes &&
+          nextSeconds === curr.targetDurationMinutes * 60
+        ) {
+          soundEffects.playTimerDone(preferences.soundEnabled !== false);
+          showToast(
+            'Pomodoro focus target completed!',
+            'success',
+            'Time for a brief recharge break.'
+          );
+        }
         return {
           ...curr,
-          elapsedSeconds: curr.elapsedSeconds + 1,
+          elapsedSeconds: nextSeconds,
         };
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activeTimer?.isRunning]);
+  }, [activeTimer?.isRunning, preferences.soundEnabled, showToast]);
 
   // Change workspace
   const setWorkspace = useCallback((ws: 'demo' | 'personal') => {
@@ -288,10 +310,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTasks(updated);
       saveTasks(activeWorkspace, updated);
       if (status === 'completed') {
+        soundEffects.playTaskComplete(preferences.soundEnabled !== false);
         showToast('Task completed!', 'success');
       }
     },
-    [activeWorkspace, tasks, showToast]
+    [activeWorkspace, tasks, preferences.soundEnabled, showToast]
   );
 
   // Activity Log actions
@@ -387,7 +410,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Timer actions
   const startTimer = useCallback(
-    (title: string, category: CategoryType, taskId: string | null = null, isUnplanned = false) => {
+    (
+      title: string,
+      category: CategoryType,
+      taskId: string | null = null,
+      isUnplanned = false,
+      mode: 'stopwatch' | 'pomodoro' = 'stopwatch',
+      targetMinutes?: number
+    ) => {
       const newTimer: ActiveTimerState = {
         taskId,
         taskTitle: title,
@@ -397,12 +427,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isRunning: true,
         interruptionCount: 0,
         isUnplanned,
+        mode,
+        targetDurationMinutes: mode === 'pomodoro' ? targetMinutes || 25 : undefined,
       };
       setActiveTimer(newTimer);
       saveActiveTimer(newTimer);
-      showToast('Timer started', 'info', `Tracking "${title}"`);
+      soundEffects.playFocusStart(preferences.soundEnabled !== false);
+      showToast(
+        mode === 'pomodoro' ? 'Pomodoro Focus Started' : 'Focus Stopwatch Started',
+        'info',
+        mode === 'pomodoro' ? `Target: ${targetMinutes || 25}m on "${title}"` : `Tracking "${title}"`
+      );
     },
-    [showToast]
+    [preferences.soundEnabled, showToast]
   );
 
   const pauseTimer = useCallback(() => {
@@ -445,11 +482,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isUnplanned: activeTimer.isUnplanned,
       });
 
+      soundEffects.playTimerDone(preferences.soundEnabled !== false);
       setActiveTimer(null);
       saveActiveTimer(null);
     },
-    [activeTimer, selectedDate, addLog]
+    [activeTimer, selectedDate, addLog, preferences.soundEnabled]
   );
+
+  const toggleSound = useCallback(() => {
+    const nextVal = preferences.soundEnabled === false ? true : false;
+    updatePreferences({ soundEnabled: nextVal });
+    if (nextVal) {
+      soundEffects.playTaskComplete(true);
+      showToast('Sound effects enabled', 'info');
+    } else {
+      showToast('Sound muted', 'info');
+    }
+  }, [preferences.soundEnabled, updatePreferences, showToast]);
 
   const discardTimer = useCallback(() => {
     setActiveTimer(null);
@@ -516,6 +565,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedDate,
     preferences,
     updatePreferences,
+    toggleSound,
     tasks,
     logs,
     experiments,

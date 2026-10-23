@@ -8,6 +8,8 @@ import {
   Moon,
   Plus,
   Sun,
+  Volume2,
+  VolumeX,
   Zap,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -25,6 +27,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
     setEditingTask,
     setPreselectedLogTask,
     activeWorkspace,
+    preferences,
+    toggleSound,
   } = useApp();
 
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -185,6 +189,19 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
           <span className="hidden sm:inline">Log Activity</span>
           <span className="sm:hidden">Log</span>
         </motion.button>
+
+        {/* Sound FX Toggle Button */}
+        <button
+          onClick={toggleSound}
+          className="rounded-xl border border-white/[0.12] bg-white/[0.04] p-2 text-zinc-400 hover:border-white/30 hover:text-white transition-colors"
+          title={preferences.soundEnabled === false ? 'Unmute focus bells' : 'Mute focus bells'}
+        >
+          {preferences.soundEnabled === false ? (
+            <VolumeX className="h-3.5 w-3.5" />
+          ) : (
+            <Volume2 className="h-3.5 w-3.5 text-white" />
+          )}
+        </button>
 
         {/* Theme Toggle Button */}
         <button

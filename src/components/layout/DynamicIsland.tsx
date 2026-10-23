@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
+  AlertCircle,
   BarChart3,
   CalendarDays,
   ChevronDown,
@@ -24,6 +25,7 @@ export const DynamicIsland: React.FC = () => {
     activeTimer,
     pauseTimer,
     resumeTimer,
+    addTimerInterruption,
     finishTimerAndSave,
     activeWorkspace,
     setWorkspace,
@@ -54,12 +56,12 @@ export const DynamicIsland: React.FC = () => {
       <motion.div
         layout
         transition={{ type: 'spring', damping: 30, stiffness: 350 }}
-        className={`crystal-panel relative overflow-hidden border border-white/20 bg-black/90 shadow-[0_35px_80px_rgba(0,0,0,0.98),inset_0_1px_2px_rgba(255,255,255,0.45)] backdrop-blur-3xl ring-1 ring-white/10 ${
+        className={`crystal-panel relative overflow-hidden border border-white/20 bg-black/40 shadow-[0_25px_60px_rgba(0,0,0,0.65),inset_0_1px_2px_rgba(255,255,255,0.35)] backdrop-blur-2xl ring-1 ring-white/10 ${
           isExpanded ? 'rounded-[40px] p-3' : 'rounded-full p-1.5'
         }`}
       >
         {/* Specular glass reflection layer */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.1] via-white/[0.02] to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.12] via-white/[0.03] to-transparent" />
 
         {/* Expanded Vertical Drawer */}
         <AnimatePresence>
@@ -75,7 +77,7 @@ export const DynamicIsland: React.FC = () => {
                 {/* Workspace Switcher */}
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <span className="text-[10px] font-mono uppercase text-zinc-400">Workspace:</span>
-                  <div className="flex rounded-full bg-black/80 p-0.5 border border-white/10 flex-1 sm:flex-none">
+                  <div className="flex rounded-full bg-black/50 p-0.5 border border-white/15 flex-1 sm:flex-none">
                     <button
                       onClick={() => setWorkspace('demo')}
                       className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-all ${
@@ -126,7 +128,10 @@ export const DynamicIsland: React.FC = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                  }}
                   className={`relative flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors flex-1 sm:flex-none justify-center ${
                     isActive ? 'text-black font-black' : 'text-zinc-400 hover:text-white'
                   }`}
@@ -161,11 +166,26 @@ export const DynamicIsland: React.FC = () => {
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-white shadow-[0_0_6px_#fff]" />
               </span>
 
-              <span className="font-mono font-bold text-white text-xs">
-                {formatTimerDigits(activeTimer.elapsedSeconds)}
-              </span>
+              {activeTimer.mode === 'pomodoro' && activeTimer.targetDurationMinutes ? (
+                <div className="flex items-center gap-1.5 font-mono text-xs">
+                  <span className="text-[10px] text-zinc-400 uppercase">Focus</span>
+                  <span className="font-bold text-white">
+                    {(() => {
+                      const remainSec = Math.max(
+                        0,
+                        activeTimer.targetDurationMinutes * 60 - activeTimer.elapsedSeconds
+                      );
+                      return formatTimerDigits(remainSec);
+                    })()}
+                  </span>
+                </div>
+              ) : (
+                <span className="font-mono font-bold text-white text-xs">
+                  {formatTimerDigits(activeTimer.elapsedSeconds)}
+                </span>
+              )}
 
-              <div className="flex items-center gap-0.5 ml-1">
+              <div className="flex items-center gap-1 ml-1">
                 {activeTimer.isRunning ? (
                   <button
                     onClick={pauseTimer}
@@ -183,10 +203,19 @@ export const DynamicIsland: React.FC = () => {
                     <Play className="h-3 w-3" />
                   </button>
                 )}
+
+                <button
+                  onClick={addTimerInterruption}
+                  className="p-1 rounded-full text-zinc-300 hover:text-white"
+                  title={`Log Interruption (${activeTimer.interruptionCount})`}
+                >
+                  <AlertCircle className="h-3 w-3" />
+                </button>
+
                 <button
                   onClick={() => finishTimerAndSave()}
                   className="p-1 rounded-full text-zinc-300 hover:text-white"
-                  title="Finish & Log"
+                  title="Finish & Save Session"
                 >
                   <Square className="h-3 w-3 fill-white" />
                 </button>

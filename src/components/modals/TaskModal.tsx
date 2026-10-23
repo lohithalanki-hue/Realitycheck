@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, Clock, Sparkles, Tag, X } from 'lucide-react';
+import { Calendar, Clock, Sparkles, Tag, Wand2, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { CategoryType, PriorityType, Task } from '../../types';
+import { calculateHonestEstimate, parseNaturalTaskInput } from '../../lib/analytics/gapEngine';
 
 export const TaskModal: React.FC = () => {
   const {
@@ -15,6 +16,7 @@ export const TaskModal: React.FC = () => {
     selectedDate,
     preferences,
     tasks,
+    logs,
   } = useApp();
 
   const [title, setTitle] = useState('');
@@ -116,6 +118,32 @@ export const TaskModal: React.FC = () => {
     setEditingTask(null);
   };
 
+  const handleTitleChange = (val: string) => {
+    setTitle(val);
+    if (!editingTask && val.length > 5) {
+      const parsed = parseNaturalTaskInput(val);
+      if (parsed.durationMinutes && parsed.durationMinutes !== estimatedDurationMinutes) {
+        setEstimatedDurationMinutes(parsed.durationMinutes);
+      }
+      if (parsed.category && parsed.category !== category) {
+        setCategory(parsed.category);
+      }
+      if (parsed.startTime && parsed.startTime !== scheduledStartTime) {
+        setScheduledStartTime(parsed.startTime);
+      }
+      if (parsed.priority && parsed.priority !== priority) {
+        setPriority(parsed.priority);
+      }
+    }
+  };
+
+  const honest = calculateHonestEstimate(
+    Number(estimatedDurationMinutes) || 45,
+    category,
+    tasks,
+    logs
+  );
+
   return (
     <AnimatePresence>
       {isTaskModalOpen && (
@@ -190,8 +218,8 @@ export const TaskModal: React.FC = () => {
                   type="text"
                   required
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Architect distributed caching layer"
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  placeholder="e.g. Architect distributed caching layer (try 'Write docs 45m at 2pm')"
                   className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:border-white focus:outline-none"
                 />
               </div>
@@ -309,6 +337,22 @@ export const TaskModal: React.FC = () => {
                   </button>
                 ))}
               </div>
+
+              {honest.hasAdjustment && (
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setEstimatedDurationMinutes(honest.recommendedMinutes)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-mono text-white hover:bg-white hover:text-black transition-all shadow-sm"
+                    title={honest.explanation}
+                  >
+                    <Wand2 className="h-3.5 w-3.5" />
+                    <span>
+                      Apply Honest Estimate: {honest.recommendedMinutes}m ({honest.multiplier}x historical bias on {category})
+                    </span>
+                  </button>
+                </div>
+              )}
 
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">

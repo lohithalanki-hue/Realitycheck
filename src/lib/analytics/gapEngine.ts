@@ -474,3 +474,216 @@ export function detectPatterns(
 
   return insights;
 }
+
+/**
+ * Natural language task input parser.
+ * Automatically extracts:
+ * - duration (e.g. 30m, 45 mins, 1.5h, 2 hours)
+ * - scheduled time (e.g. @ 2pm, at 14:00, @ 10:30am)
+ * - category keywords (e.g. sync, meeting, design, deep work, admin, run, gym)
+ * - priority keywords (urgent, critical, high, low)
+ * - cleaned task title
+ */
+export function parseNaturalTaskInput(rawInput: string): {
+  title: string;
+  durationMinutes: number;
+  category: CategoryType;
+  startTime?: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+} {
+  let cleaned = rawInput.trim();
+  let durationMinutes = 45;
+  let category: CategoryType = 'Deep Work';
+  let startTime: string | undefined = undefined;
+  let priority: 'low' | 'medium' | 'high' | 'critical' = 'medium';
+
+  // 1. Duration matching (e.g., 45m, 1h, 1.5h, 90 mins, 2 hours)
+  const durationMatch = cleaned.match(/(\d+(?:\.\d+)?)\s*(m|min|mins|minutes|h|hr|hrs|hours)\b/i);
+  if (durationMatch) {
+    const val = parseFloat(durationMatch[1]);
+    const unit = durationMatch[2].toLowerCase();
+    if (unit.startsWith('h')) {
+      durationMinutes = Math.round(val * 60);
+    } else {
+      durationMinutes = Math.round(val);
+    }
+    cleaned = cleaned.replace(durationMatch[0], '').trim();
+  }
+
+  // 2. Scheduled time matching (e.g. @ 2pm, at 14:30, @ 9:30am, at 11am)
+  const timeMatch = cleaned.match(/(?:@|at)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i);
+  if (timeMatch) {
+    let hour = parseInt(timeMatch[1], 10);
+    const minute = timeMatch[2] ? timeMatch[2] : '00';
+    const meridiem = timeMatch[3]?.toLowerCase();
+
+    if (meridiem === 'pm' && hour < 12) hour += 12;
+    if (meridiem === 'am' && hour === 12) hour = 0;
+
+    startTime = `${hour.toString().padStart(2, '0')}:${minute}`;
+    cleaned = cleaned.replace(timeMatch[0], '').trim();
+  }
+
+  // 3. Category inference
+  const lower = rawInput.toLowerCase();
+  if (lower.match(/\b(meeting|sync|call|standup|1:1|retro|catchup|interview)\b/)) {
+    category = 'Meetings & Syncs';
+  } else if (lower.match(/\b(design|figma|ui|ux|wireframe|mockup|brand|sketch|art|creative)\b/)) {
+    category = 'Creative & Design';
+  } else if (lower.match(/\b(research|read|learn|paper|course|study|investigate|audit)\b/)) {
+    category = 'Learning & Research';
+  } else if (lower.match(/\b(email|inbox|slack|invoice|admin|setup|bills|errand|ticket|ops)\b/)) {
+    category = 'Admin & Operations';
+  } else if (lower.match(/\b(gym|walk|run|workout|health|doctor|meditate|lunch|recharge|break)\b/)) {
+    category = 'Health & Personal';
+  } else {
+    category = 'Deep Work';
+  }
+
+  // 4. Priority inference
+  if (lower.match(/\b(urgent|critical|asap|p0|blocker)\b/)) {
+    priority = 'critical';
+    cleaned = cleaned.replace(/\b(urgent|critical|asap|p0|blocker)\b/gi, '').trim();
+  } else if (lower.match(/\b(high priority|important|p1)\b/)) {
+    priority = 'high';
+    cleaned = cleaned.replace(/\b(high priority|important|p1)\b/gi, '').trim();
+  } else if (lower.match(/\b(low priority|optional|someday|p3)\b/)) {
+    priority = 'low';
+    cleaned = cleaned.replace(/\b(low priority|optional|someday|p3)\b/gi, '').trim();
+  }
+
+  // Clean trailing punctuation or extra spaces
+  cleaned = cleaned.replace(/\s+/g, ' ').replace(/^[-:,]+|[-:,]+$/g, '').trim();
+
+  return {
+    title: cleaned || rawInput,
+    durationMinutes: Math.max(10, Math.min(480, durationMinutes)),
+    category,
+    startTime,
+    priority,
+  };
+}
+
+/**
+ * Calculates personal historical planning multiplier for a specific category.
+ * If user usually takes 60m on 45m tasks -> multiplier = 1.33.
+ */
+export function calculateCategoryMultiplier(
+  category: CategoryType,
+  tasks: Task[],
+  logs: ActivityLog[]
+): {
+  multiplier: number;
+  sampleSize: number;
+  confidence: 'low' | 'medium' | 'high';
+} {
+  const catTasks = tasks.filter((t) => t.category === category && t.status !== 'cancelled');
+  const catLogs = logs.filter((l) => l.category === category);
+
+  let totalPlanned = 0;
+  let totalActual = 0;
+  let pairedCount = 0;
+
+  catTasks.forEach((t) => {
+    const pairedLogs = catLogs.filter((l) => l.taskId === t.id);
+    if (pairedLogs.length > 0) {
+      const actualSum = pairedLogs.reduce((sum, l) => sum + l.actualDurationMinutes, 0);
+      totalPlanned += t.estimatedDurationMinutes;
+      totalActual += actualSum;
+      pairedCount++;
+    }
+  });
+
+  if (pairedCount < 2 || totalPlanned === 0) {
+    return { multiplier: 1.0, sampleSize: pairedCount, confidence: 'low' };
+  }
+
+  const rawMultiplier = totalActual / totalPlanned;
+  const clamped = Math.max(0.7, Math.min(2.5, Math.round(rawMultiplier * 100) / 100));
+
+  return {
+    multiplier: clamped,
+    sampleSize: pairedCount,
+    confidence: pairedCount >= 6 ? 'high' : 'medium',
+  };
+}
+
+/**
+ * Recommends an "Honest Estimate" applying personal historical multiplier
+ */
+export function calculateHonestEstimate(
+  estimatedMinutes: number,
+  category: CategoryType,
+  tasks: Task[],
+  logs: ActivityLog[]
+): {
+  recommendedMinutes: number;
+  multiplier: number;
+  hasAdjustment: boolean;
+  explanation: string;
+} {
+  const { multiplier, confidence } = calculateCategoryMultiplier(category, tasks, logs);
+
+  if (confidence === 'low' || Math.abs(multiplier - 1.0) < 0.08) {
+    return {
+      recommendedMinutes: estimatedMinutes,
+      multiplier: 1.0,
+      hasAdjustment: false,
+      explanation: 'Your estimates for this category have been highly accurate.',
+    };
+  }
+
+  // Calculate adjusted minutes rounded to nearest 5 or 15 mins
+  const rawAdjusted = estimatedMinutes * multiplier;
+  const rounded = Math.round(rawAdjusted / 15) * 15 || Math.round(rawAdjusted / 5) * 5;
+
+  return {
+    recommendedMinutes: Math.max(15, rounded),
+    multiplier,
+    hasAdjustment: rounded !== estimatedMinutes,
+    explanation:
+      multiplier > 1
+        ? `You historically take ${Math.round((multiplier - 1) * 100)}% longer on ${category}.`
+        : `You historically complete ${category} faster than planned.`,
+  };
+}
+
+/**
+ * Calculates current estimated workday wrap-up time based on remaining tasks and pace
+ */
+export function calculateWorkdayForecast(
+  todayTasks: Task[],
+  todayLogs: ActivityLog[],
+  averageMultiplier = 1.15
+): {
+  predictedEndTimeStr: string;
+  remainingMinutes: number;
+  status: 'ahead' | 'on_track' | 'running_late';
+} {
+  const pendingTasks = todayTasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled');
+  const baseRemainingMins = pendingTasks.reduce((sum, t) => sum + t.estimatedDurationMinutes, 0);
+  const adjustedRemainingMins = Math.round(baseRemainingMins * averageMultiplier);
+
+  const now = new Date();
+  const projectedDate = new Date(now.getTime() + adjustedRemainingMins * 60 * 1000);
+
+  const hours = projectedDate.getHours();
+  const mins = projectedDate.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours % 12 || 12;
+  const displayMins = mins.toString().padStart(2, '0');
+
+  let status: 'ahead' | 'on_track' | 'running_late' = 'on_track';
+  if (averageMultiplier > 1.25) {
+    status = 'running_late';
+  } else if (averageMultiplier < 0.95) {
+    status = 'ahead';
+  }
+
+  return {
+    predictedEndTimeStr: `${displayHours}:${displayMins} ${ampm}`,
+    remainingMinutes: adjustedRemainingMins,
+    status,
+  };
+}
+

@@ -18,6 +18,8 @@ import {
   Upload,
   User,
 } from 'lucide-react';
+import { ScrollReveal } from '../components/ui/ScrollReveal';
+import { ScrollStageIndicator, Stage } from '../components/ui/ScrollStageIndicator';
 import { useApp } from '../context/AppContext';
 import {
   calculateCategoryBreakdown,
@@ -27,6 +29,13 @@ import {
   formatDuration,
 } from '../lib/analytics/gapEngine';
 import { exportFullDataAsJSON, importFullDataFromJSON } from '../lib/storage';
+
+const REPORTS_STAGES: Stage[] = [
+  { id: 'reports-hero', number: '01', label: 'Retrospective' },
+  { id: 'reports-summary', number: '02', label: 'Weekly Delta' },
+  { id: 'reports-ledger', number: '03', label: 'Export Ledger' },
+  { id: 'reports-settings', number: '04', label: 'Workspace & Data' },
+];
 
 export const ReportsPage: React.FC = () => {
   const {
@@ -140,25 +149,23 @@ export const ReportsPage: React.FC = () => {
           'Spontaneous Activity',
           '0',
           l.actualDurationMinutes.toString(),
-          l.actualDurationMinutes.toString(),
-          l.completionStatus,
+          `+${l.actualDurationMinutes}`,
+          'completed',
         ]);
       });
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `RealityCheck-Report-${currentWeek.startDate}-to-${currentWeek.endDate}.csv`);
+    link.setAttribute('download', `RealityCheck_Audit_${currentWeek.startDate}_to_${currentWeek.endDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-
-    showToast('Report CSV exported', 'success');
+    showToast('Weekly CSV audit export generated', 'success');
   };
 
-  const handleSavePreferences = (e: React.FormEvent) => {
+  const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     updatePreferences({
       displayName,
@@ -167,415 +174,489 @@ export const ReportsPage: React.FC = () => {
       weekStart,
       workHoursStart,
       workHoursEnd,
-      dailyAvailableMinutes: Number(dailyAvailableMinutes) || 480,
+      dailyAvailableMinutes: Number(dailyAvailableMinutes),
     });
+    showToast('Preferences saved successfully', 'success');
   };
 
-  const handleExportJSON = () => {
-    const dataStr = exportFullDataAsJSON();
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `RealityCheck-Backup-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    showToast('All workspace data exported as JSON', 'success');
+  const handleDownloadBackup = () => {
+    exportFullDataAsJSON();
+    showToast('Full JSON backup downloaded', 'success');
   };
 
-  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      const success = importFullDataFromJSON(content);
+    try {
+      const text = await file.text();
+      const success = importFullDataFromJSON(text);
       if (success) {
-        showToast('Backup restored successfully', 'success');
+        showToast('Data imported successfully. Reloading...', 'success');
+        setTimeout(() => window.location.reload(), 800);
       } else {
-        showToast('Invalid JSON backup file', 'error');
+        showToast('Invalid backup file schema', 'error');
       }
-    };
-    reader.readAsText(file);
+    } catch {
+      showToast('Error reading uploaded file', 'error');
+    }
   };
 
   return (
-    <div className="space-y-6 pb-28 animate-fade-in">
-      {/* Header with Sub-Tab Nav */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
-            Reports & Preferences
-          </h1>
-          <p className="mt-1 text-xs text-zinc-400">
-            Weekly execution audits, CSV export, and schedule parameters
-          </p>
-        </div>
+    <div className="relative space-y-44 sm:space-y-52 pb-48">
+      {/* Chapter navigation rail */}
+      <ScrollStageIndicator stages={REPORTS_STAGES} />
 
-        {/* View Switcher Pill */}
-        <div className="flex rounded-full border border-white/15 bg-white/[0.04] backdrop-blur-xl p-1 self-start sm:self-auto shadow-sm">
-          <button
-            onClick={() => setActiveSubTab('reports')}
-            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
-              activeSubTab === 'reports'
-                ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            <span>Weekly Reality Report</span>
-          </button>
-          <button
-            onClick={() => setActiveSubTab('settings')}
-            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
-              activeSubTab === 'settings'
-                ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Settings className="h-3.5 w-3.5" />
-            <span>Settings & Data</span>
-          </button>
-        </div>
-      </div>
-
-      {activeSubTab === 'reports' ? (
-        <>
-          {/* Controls Bar */}
-          <div className="flex items-center justify-between gap-2.5 flex-wrap no-print">
-            <select
-              value={selectedWeekOffset}
-              onChange={(e) => setSelectedWeekOffset(Number(e.target.value))}
-              className="rounded-xl border border-white/15 bg-black/60 backdrop-blur-md px-3 py-2 text-xs font-mono text-white focus:border-white focus:outline-none"
-            >
-              <option value={0} className="bg-black text-white">Current Week ({currentWeek.startLabel} - {currentWeek.endLabel})</option>
-              <option value={-1} className="bg-black text-white">Prior Week ({getWeekDates(-1).startLabel} - {getWeekDates(-1).endLabel})</option>
-              <option value={-2} className="bg-black text-white">2 Weeks Ago ({getWeekDates(-2).startLabel} - {getWeekDates(-2).endLabel})</option>
-            </select>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleExportCSV}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-zinc-200 hover:border-white/30 hover:text-white transition-colors"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>Export CSV</span>
-              </button>
-
-              <button
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-black text-black hover:bg-zinc-100 shadow-[0_0_15px_rgba(255,255,255,0.3)] transition-all"
-              >
-                <Printer className="h-3.5 w-3.5 fill-black" />
-                <span>Print Document</span>
-              </button>
-            </div>
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 1: HERO & WEEKLY RETROSPECTIVE (Slow Dolby Atmosphere) */}
+      {/* ------------------------------------------------------------- */}
+      <section id="reports-hero" className="relative pt-6 sm:pt-16 text-center min-h-[70vh] flex flex-col justify-center">
+        <ScrollReveal mode="inView" duration={1.8} yOffset={40} blurAmount={12}>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.04] px-4 py-1.5 text-xs text-zinc-300 backdrop-blur-2xl mb-6 shadow-sm">
+            <span className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_8px_#fff] animate-pulse" />
+            <span className="font-medium">Audit Period</span>
+            <span className="text-zinc-500">•</span>
+            <span className="font-mono text-zinc-400">
+              {currentWeek.startLabel} – {currentWeek.endLabel}
+            </span>
           </div>
 
-          {/* Printable Report Crystal Canvas */}
-          <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 sm:p-8 space-y-6 backdrop-blur-2xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white max-w-4xl mx-auto leading-[1.08]">
+            Weekly audit & executive ledger.
+          </h1>
 
-            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-5 gap-3">
-              <div>
-                <div className="text-[11px] font-mono uppercase tracking-widest text-white font-bold">
-                  REALITYCHECK AUDIT DISPATCH
-                </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-white mt-1">
-                  Weekly Performance Review: {currentWeek.startLabel} – {currentWeek.endLabel}
-                </h2>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Subject: {preferences.displayName} • Verification: Deterministic Intention Calibration
-                </p>
-              </div>
+          <p className="mt-6 text-base sm:text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
+            Step back, celebrate honest follow-through, and export your verified hours for team stakeholders or billing records.
+          </p>
 
-              <div className="rounded-xl border border-white/15 bg-white/[0.04] backdrop-blur-md px-4 py-2.5 text-center sm:text-right shadow-sm">
-                <span className="text-[10px] font-mono uppercase text-zinc-400 block">Weekly Accuracy</span>
-                <span className="font-mono text-2xl font-black text-white">{planningAccuracy}%</span>
-              </div>
+          {/* Sub-tab view toggle pill */}
+          <div className="mt-8 inline-flex rounded-full border border-white/20 bg-white/[0.04] p-1.5 backdrop-blur-2xl shadow-xl">
+            <button
+              onClick={() => setActiveSubTab('reports')}
+              className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all ${
+                activeSubTab === 'reports'
+                  ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <span>Weekly Retrospective</span>
+            </button>
+            <button
+              onClick={() => setActiveSubTab('settings')}
+              className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all ${
+                activeSubTab === 'settings'
+                  ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Settings className="h-3.5 w-3.5" />
+              <span>Workspace & Data Control</span>
+            </button>
+          </div>
+
+          {/* Week offset navigator */}
+          {activeSubTab === 'reports' && (
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <button
+                onClick={() => setSelectedWeekOffset((w) => w - 1)}
+                className="rounded-full border border-white/15 bg-white/[0.04] px-4 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-white/10 transition-colors font-mono"
+              >
+                ← Previous Week
+              </button>
+              <button
+                onClick={() => setSelectedWeekOffset(0)}
+                className={`rounded-full px-4 py-1.5 text-xs font-mono transition-colors ${
+                  selectedWeekOffset === 0
+                    ? 'bg-white text-black font-bold shadow-sm'
+                    : 'border border-white/15 text-zinc-400 hover:text-white'
+                }`}
+              >
+                Current Week
+              </button>
+              <button
+                onClick={() => setSelectedWeekOffset((w) => w + 1)}
+                className="rounded-full border border-white/15 bg-white/[0.04] px-4 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-white/10 transition-colors font-mono"
+              >
+                Next Week →
+              </button>
             </div>
+          )}
+        </ScrollReveal>
+      </section>
 
-            {/* Metrics */}
-            <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md">
-                <span className="text-[11px] font-mono uppercase text-zinc-400">Total Planned</span>
-                <div className="mt-1 font-mono text-2xl font-black text-white">
-                  {formatDuration(totalPlannedMinutes)}
-                </div>
-                <span className="text-[10px] text-zinc-400 font-mono">
-                  {eligibleTasks.length} commitments
-                </span>
-              </div>
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 2: WEEK-OVER-WEEK DELTA & VELOCITY                    */}
+      {/* ------------------------------------------------------------- */}
+      <section id="reports-summary" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="text-center sm:text-left space-y-2">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-6 rounded-full bg-white/40" />
+              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                Chapter 01
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+              Week-Over-Week Velocity Delta
+            </h2>
+            <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+              Comparison between this 7-day window and the preceding cycle to gauge consistency and drift.
+            </p>
+          </div>
+        </ScrollReveal>
 
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md">
-                <span className="text-[11px] font-mono uppercase text-zinc-400">Total Logged Time</span>
-                <div className="mt-1 font-mono text-2xl font-black text-white">
-                  {formatDuration(totalActualMinutes)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <ScrollReveal mode="inView" delay={0.1} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase font-mono tracking-wider">
+                  <span>Weekly Follow-Through</span>
+                  <Calendar className="h-4 w-4 text-zinc-400" />
                 </div>
-                <div className="mt-0.5 flex items-center text-[10px] font-mono text-zinc-400">
-                  {deltaHours >= 0 ? `+${deltaHours.toFixed(1)}h` : `${deltaHours.toFixed(1)}h`} vs prior week
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md">
-                <span className="text-[11px] font-mono uppercase text-zinc-400">Net Intention Gap</span>
-                <div className="mt-1 font-mono text-2xl font-black text-white">
-                  {netGapMinutes > 0 ? `+${formatDuration(netGapMinutes)}` : formatDuration(netGapMinutes)}
-                </div>
-                <span className="text-[10px] text-zinc-400 font-mono">
-                  {netGapMinutes > 0 ? 'Budget overrun' : 'Under budget'}
-                </span>
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md">
-                <span className="text-[11px] font-mono uppercase text-zinc-400">Task Completion Rate</span>
-                <div className="mt-1 font-mono text-2xl font-black text-white">
-                  {completionRate}%
-                </div>
-                <div className="mt-0.5 flex items-center text-[10px] font-mono">
-                  <span className="text-white flex items-center font-bold">
-                    {deltaCompletion >= 0 ? <ArrowUpRight className="h-3 w-3 mr-0.5" /> : <ArrowDownRight className="h-3 w-3 mr-0.5" />}
+                <div className="mt-5 flex items-baseline justify-between">
+                  <span className="font-mono text-3xl font-black text-white">{completionRate}%</span>
+                  <span className="text-xs font-mono text-zinc-400 flex items-center gap-1">
+                    {deltaCompletion >= 0 ? <ArrowUpRight className="h-3 w-3 text-white" /> : <ArrowDownRight className="h-3 w-3 text-zinc-400" />}
                     {deltaCompletion >= 0 ? `+${deltaCompletion}%` : `${deltaCompletion}%`}
                   </span>
-                  <span className="text-zinc-500 ml-1">vs prior</span>
                 </div>
               </div>
-            </div>
-
-            {/* Category Accuracy Table */}
-            <div className="relative z-10 rounded-xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-300 mb-3">
-                Domain Accuracy Breakdown
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-mono">
-                  <thead>
-                    <tr className="border-b border-white/10 text-[10px] text-zinc-400">
-                      <th className="pb-2">Domain</th>
-                      <th className="pb-2">Planned</th>
-                      <th className="pb-2">Actual Recorded</th>
-                      <th className="pb-2">Net Gap</th>
-                      <th className="pb-2 text-right">Planning Accuracy</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {activeCategories.map((cat) => (
-                      <tr key={cat.category}>
-                        <td className="py-2.5 font-sans font-semibold text-white">{cat.category}</td>
-                        <td className="py-2.5 text-zinc-400">{formatDuration(cat.plannedMinutes)}</td>
-                        <td className="py-2.5 text-white font-bold">{formatDuration(cat.actualMinutes)}</td>
-                        <td className="py-2.5 font-bold text-white">
-                          {cat.gapMinutes > 0 ? `+${formatDuration(cat.gapMinutes)}` : formatDuration(cat.gapMinutes)}
-                        </td>
-                        <td className="py-2.5 text-right font-black text-white">{cat.accuracy}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 text-xs text-zinc-400">
+                {weekTasks.filter((t) => t.status === 'completed').length} of {weekTasks.length} commitments done
               </div>
             </div>
+          </ScrollReveal>
 
-            {/* Verified Audit Observations */}
-            <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-1 backdrop-blur-md">
-                <span className="text-[10px] font-mono uppercase font-bold text-white">
-                  1. Calibration Anchor
-                </span>
-                <p className="text-xs text-white font-semibold">
-                  {mostAccurateCategory
-                    ? `${mostAccurateCategory.category} was your most calibrated domain.`
-                    : 'Sufficient records needed.'}
-                </p>
-                <p className="text-[11px] text-zinc-400">
-                  {mostAccurateCategory
-                    ? `Achieved ${mostAccurateCategory.accuracy}% accuracy (${formatDuration(mostAccurateCategory.actualMinutes)} logged vs ${formatDuration(mostAccurateCategory.plannedMinutes)} planned).`
-                    : 'Continue logging to identify your strongest planning anchor.'}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-1 backdrop-blur-md">
-                <span className="text-[10px] font-mono uppercase font-bold text-white">
-                  2. Primary Friction Point
-                </span>
-                <p className="text-xs text-white font-semibold">
-                  {largestGapCategory && largestGapCategory.gapMinutes > 0
-                    ? `${largestGapCategory.category} generated greatest time overrun.`
-                    : 'Variance within nominal bounds.'}
-                </p>
-                <p className="text-[11px] text-zinc-400">
-                  {largestGapCategory && largestGapCategory.gapMinutes > 0
-                    ? `Accumulated ${formatDuration(largestGapCategory.gapMinutes)} beyond initial estimate.`
-                    : 'Time commitments closely mirrored actual expending.'}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-1 backdrop-blur-md">
-                <span className="text-[10px] font-mono uppercase font-bold text-white">
-                  3. Estimation Bias Direction
-                </span>
-                <p className="text-xs text-white font-semibold">
-                  {estimationStats.errorPercent > 10
-                    ? `Systematic underestimation of ${estimationStats.errorPercent}%.`
-                    : 'Balanced forecast calibration.'}
-                </p>
-                <p className="text-[11px] text-zinc-400">
-                  Sample of {estimationStats.totalPairedTasks} recorded tasks indicates average overrun of {estimationStats.avgOverrunMinutes}m per task.
-                </p>
-              </div>
-            </div>
-
-            <div className="relative z-10 rounded-xl border border-white/20 bg-white/[0.06] p-4 flex items-start gap-3 backdrop-blur-md">
-              <Sparkles className="h-5 w-5 shrink-0 text-white mt-0.5" />
-              <div className="space-y-1 text-xs">
-                <span className="font-bold text-white uppercase font-mono text-[10px]">
-                  Prescribed Tactical Focus For Coming Week
-                </span>
-                <p className="text-zinc-200">
-                  {largestGapCategory && largestGapCategory.gapMinutes > 60
-                    ? `Allocate a mandatory 25% buffer on all upcoming "${largestGapCategory.category}" commitments before locking schedules.`
-                    : 'Maintain current scheduling granularity and protect morning focus blocks from unscheduled interruptions.'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </>
-      ) : (
-        /* Settings & Data Management View */
-        <div className="space-y-6 max-w-3xl">
-          <form onSubmit={handleSavePreferences} className="crystal-panel relative overflow-hidden rounded-2xl p-6 space-y-4 backdrop-blur-2xl">
-            <div className="flex items-center gap-2 pb-2 border-b border-white/10">
-              <User className="h-4 w-4 text-white" />
-              <h2 className="text-sm font-bold text-white">Operator Profile & Capacity Budget</h2>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase text-zinc-400">
-                  Display Name
-                </label>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2 text-xs text-white focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase text-zinc-400">
-                  Daily Budget (Minutes)
-                </label>
-                <input
-                  type="number"
-                  min="60"
-                  step="30"
-                  value={dailyAvailableMinutes}
-                  onChange={(e) => setDailyAvailableMinutes(Number(e.target.value))}
-                  className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2 text-xs font-mono text-white focus:border-white focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase text-zinc-400">
-                  Workday Window
-                </label>
-                <div className="flex items-center gap-2 font-mono text-xs">
-                  <input
-                    type="time"
-                    value={workHoursStart}
-                    onChange={(e) => setWorkHoursStart(e.target.value)}
-                    className="rounded-lg border border-white/15 bg-black/60 px-2.5 py-1 text-white"
-                  />
-                  <span className="text-zinc-500">to</span>
-                  <input
-                    type="time"
-                    value={workHoursEnd}
-                    onChange={(e) => setWorkHoursEnd(e.target.value)}
-                    className="rounded-lg border border-white/15 bg-black/60 px-2.5 py-1 text-white"
-                  />
+          <ScrollReveal mode="inView" delay={0.22} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase font-mono tracking-wider">
+                  <span>Total Logged Volume</span>
+                  <Clock className="h-4 w-4 text-white" />
+                </div>
+                <div className="mt-5 flex items-baseline justify-between">
+                  <span className="font-mono text-3xl font-black text-white">
+                    {(totalActualMinutes / 60).toFixed(1)}h
+                  </span>
+                  <span className="text-xs font-mono text-zinc-400 flex items-center gap-1">
+                    {deltaHours >= 0 ? `+${deltaHours.toFixed(1)}h` : `${deltaHours.toFixed(1)}h`} vs prior
+                  </span>
                 </div>
               </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase text-zinc-400">
-                  Timezone
-                </label>
-                <select
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2 text-xs text-white focus:border-white focus:outline-none"
-                >
-                  <option value="America/Los_Angeles (UTC-7)" className="bg-black text-white">America/Los Angeles (UTC-7)</option>
-                  <option value="America/New_York (UTC-4)" className="bg-black text-white">America/New York (UTC-4)</option>
-                  <option value="Europe/London (UTC+1)" className="bg-black text-white">Europe/London (UTC+1)</option>
-                  <option value="Asia/Tokyo (UTC+9)" className="bg-black text-white">Asia/Tokyo (UTC+9)</option>
-                </select>
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 text-xs text-zinc-400">
+                Across {weekLogs.length} verified sessions
               </div>
             </div>
+          </ScrollReveal>
 
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-black text-black hover:bg-zinc-100 shadow-[0_0_15px_rgba(255,255,255,0.3)] transition-all"
-              >
-                <Save className="h-3.5 w-3.5 fill-black" />
-                <span>Save Parameters</span>
-              </button>
+          <ScrollReveal mode="inView" delay={0.34} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase font-mono tracking-wider">
+                  <span>Planning Fidelity</span>
+                  <Sparkles className="h-4 w-4 text-white" />
+                </div>
+                <div className="mt-5 flex items-baseline justify-between">
+                  <span className="font-mono text-3xl font-black text-white">{planningAccuracy}%</span>
+                  <span className="text-xs font-mono text-zinc-400">
+                    {planningAccuracy - prevAccuracy >= 0 ? `+${planningAccuracy - prevAccuracy}%` : `${planningAccuracy - prevAccuracy}%`}
+                  </span>
+                </div>
+              </div>
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 text-xs text-zinc-400">
+                Net Gap: {netGapMinutes > 0 ? `+${formatDuration(netGapMinutes)}` : formatDuration(netGapMinutes)}
+              </div>
             </div>
-          </form>
+          </ScrollReveal>
 
-          {/* Data Controls */}
-          <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 space-y-4 backdrop-blur-2xl">
-            <div className="flex items-center gap-2 pb-2 border-b border-white/10">
-              <HardDrive className="h-4 w-4 text-white" />
-              <h2 className="text-sm font-bold text-white">Workspace Data & Backup</h2>
+          <ScrollReveal mode="inView" delay={0.46} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase font-mono tracking-wider">
+                  <span>Highest Accuracy</span>
+                  <Clock className="h-4 w-4 text-white" />
+                </div>
+                <div className="mt-5 font-mono text-xl font-black text-white truncate">
+                  {mostAccurateCategory ? mostAccurateCategory.category : 'N/A'}
+                </div>
+              </div>
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 text-xs text-zinc-400">
+                {mostAccurateCategory ? `${mostAccurateCategory.accuracy}% fidelity` : 'No category data'}
+              </div>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                onClick={resetDemoData}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 p-3 text-xs font-bold text-white hover:bg-white/20 transition-colors shadow-sm"
-              >
-                <RotateCcw className="h-4 w-4" />
-                <span>Reset 14-Day Demo Benchmark</span>
-              </button>
-
-              <button
-                onClick={clearPersonalData}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] p-3 text-xs font-bold text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Clear Personal Records</span>
-              </button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
-              <button
-                onClick={handleExportJSON}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 hover:border-white/30 hover:text-white transition-colors"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>Export JSON Backup</span>
-              </button>
-
-              <label className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 hover:border-white/30 hover:text-white transition-colors cursor-pointer">
-                <Upload className="h-3.5 w-3.5" />
-                <span>Import JSON Backup</span>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  onChange={handleFileImport}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          </div>
+          </ScrollReveal>
         </div>
-      )}
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 3: CATEGORY AUDIT LEDGER & EXPORT TOOLS               */}
+      {/* ------------------------------------------------------------- */}
+      <section id="reports-ledger" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2">
+                <span className="h-1.5 w-6 rounded-full bg-white/40" />
+                <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                  Chapter 02
+                </span>
+              </div>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+                Category Ledger & Export Tools
+              </h2>
+              <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+                Download a clean CSV spreadsheet audit for billing, or print a formatted snapshot for your records.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExportCSV}
+                className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-black text-black hover:bg-zinc-100 shadow-[0_0_20px_rgba(255,255,255,0.4)] transition-all"
+              >
+                <Download className="h-4 w-4" />
+                <span>Export CSV Audit</span>
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-xs font-bold text-white hover:bg-white/20 transition-all"
+              >
+                <Printer className="h-4 w-4" />
+                <span>Print / PDF</span>
+              </button>
+            </div>
+          </div>
+        </ScrollReveal>
+
+        {/* Breakdown table card */}
+        <ScrollReveal mode="inView" delay={0.15} duration={1.8} yOffset={70} blurAmount={10}>
+          <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 backdrop-blur-3xl border border-white/20 shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-4">Weekly Time Allocation Ledger</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-white/10 text-zinc-400 font-mono uppercase">
+                    <th className="pb-3 font-semibold">Category</th>
+                    <th className="pb-3 font-semibold">Planned Time</th>
+                    <th className="pb-3 font-semibold">Actual Logged</th>
+                    <th className="pb-3 font-semibold">Net Variance</th>
+                    <th className="pb-3 font-semibold">Fidelity</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {catBreakdown.map((cat) => (
+                    <tr key={cat.category} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="py-3.5 font-bold text-white">{cat.category}</td>
+                      <td className="py-3.5 font-mono text-zinc-300">{formatDuration(cat.plannedMinutes)}</td>
+                      <td className="py-3.5 font-mono text-white font-bold">{formatDuration(cat.actualMinutes)}</td>
+                      <td className="py-3.5 font-mono">
+                        <span
+                          className={`rounded px-2 py-0.5 text-[11px] font-bold ${
+                            cat.gapMinutes > 30
+                              ? 'bg-white/10 text-white border border-white/20'
+                              : 'text-zinc-400'
+                          }`}
+                        >
+                          {cat.gapMinutes > 0 ? `+${formatDuration(cat.gapMinutes)}` : formatDuration(cat.gapMinutes)}
+                        </span>
+                      </td>
+                      <td className="py-3.5 font-mono font-bold text-white">{cat.accuracy}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </ScrollReveal>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 4: WORKSPACE SETTINGS & DATA SOVEREIGNTY              */}
+      {/* ------------------------------------------------------------- */}
+      <section id="reports-settings" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-6 rounded-full bg-white/40" />
+              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                Chapter 03
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+              Workspace Settings & Data Sovereignty
+            </h2>
+            <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+              Configure your workday capacity parameters or download full portable JSON backups of your data.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
+          {/* Workday Configuration Form */}
+          <ScrollReveal mode="inView" delay={0.12} duration={1.8} yOffset={70} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 sm:p-9 backdrop-blur-3xl border border-white/20 shadow-2xl h-full flex flex-col justify-between">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-transparent" />
+              <form onSubmit={handleSaveSettings} className="relative z-10 space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="h-4 w-4 text-zinc-400" />
+                  <h3 className="text-lg font-bold text-white">Workday Capacity Setup</h3>
+                </div>
+
+                <div>
+                  <label className="text-xs text-zinc-400 font-semibold block mb-1">Display Name</label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full rounded-xl border border-white/15 bg-black/60 px-4 py-2.5 text-xs text-white focus:border-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-zinc-400 font-semibold block mb-1">Job Title / Role</label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g. Lead Engineer"
+                    className="w-full rounded-xl border border-white/15 bg-black/60 px-4 py-2.5 text-xs text-white focus:border-white focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-zinc-400 font-semibold block mb-1">Work Hours Start</label>
+                    <input
+                      type="time"
+                      value={workHoursStart}
+                      onChange={(e) => setWorkHoursStart(e.target.value)}
+                      className="w-full rounded-xl border border-white/15 bg-black/60 px-3 py-2 text-xs text-white font-mono focus:border-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-400 font-semibold block mb-1">Work Hours End</label>
+                    <input
+                      type="time"
+                      value={workHoursEnd}
+                      onChange={(e) => setWorkHoursEnd(e.target.value)}
+                      className="w-full rounded-xl border border-white/15 bg-black/60 px-3 py-2 text-xs text-white font-mono focus:border-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-zinc-400 font-semibold block mb-1">
+                    Daily Capacity Target ({dailyAvailableMinutes / 60} hours)
+                  </label>
+                  <input
+                    type="range"
+                    min={120}
+                    max={720}
+                    step={30}
+                    value={dailyAvailableMinutes}
+                    onChange={(e) => setDailyAvailableMinutes(Number(e.target.value))}
+                    className="w-full accent-white"
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-zinc-400 mt-1">
+                    <span>2 hours</span>
+                    <span>8 hours standard</span>
+                    <span>12 hours max</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-xs font-black text-black hover:bg-zinc-100 transition-all shadow-sm"
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>Save Parameters</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </ScrollReveal>
+
+          {/* Backup, Restore, and Reset */}
+          <ScrollReveal mode="inView" delay={0.25} duration={1.8} yOffset={70} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 sm:p-9 backdrop-blur-3xl border border-white/20 shadow-2xl h-full flex flex-col justify-between">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-transparent" />
+              <div className="relative z-10 space-y-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <HardDrive className="h-4 w-4 text-zinc-400" />
+                  <h3 className="text-lg font-bold text-white">Data Sovereignty & Backups</h3>
+                </div>
+
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  Your data stays 100% in your local browser storage. You can create a complete portable backup or import existing records anytime.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <button
+                    onClick={handleDownloadBackup}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-xs font-bold text-white hover:bg-white/20 transition-all shadow-sm"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Export JSON Backup</span>
+                  </button>
+
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <Upload className="h-4 w-4" />
+                    <span>Import JSON Backup</span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </div>
+
+                <div className="pt-6 border-t border-white/10 space-y-3">
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 font-bold block">
+                    Danger Zone
+                  </span>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={() => {
+                        if (confirm('Reset to standard demo tasks and logs? Current data will be replaced.')) {
+                          resetDemoData();
+                        }
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      <span>Reset Demo Data</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (confirm('Permanently clear all tasks and logs? This cannot be undone without a backup file.')) {
+                          clearPersonalData();
+                        }
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Clear All Data</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ScrollReveal>
+        </div>
+      </section>
     </div>
   );
 };

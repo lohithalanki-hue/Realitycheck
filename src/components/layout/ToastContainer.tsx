@@ -11,22 +11,22 @@ export const ToastContainer: React.FC = () => {
     <div className="fixed bottom-24 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
       {toasts.map((toast) => {
         const icons = {
-          success: <CheckCircle className="h-4 w-4 text-white shrink-0" />,
-          warning: <AlertTriangle className="h-4 w-4 text-white shrink-0" />,
-          error: <AlertCircle className="h-4 w-4 text-white shrink-0" />,
-          info: <Info className="h-4 w-4 text-zinc-300 shrink-0" />,
+          success: <CheckCircle className="h-4 w-4 text-[#C6F66A] shrink-0" />,
+          warning: <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />,
+          error: <AlertCircle className="h-4 w-4 text-rose-400 shrink-0" />,
+          info: <Info className="h-4 w-4 text-[#86E3CE] shrink-0" />,
         };
 
         return (
           <div
             key={toast.id}
-            className="crystal-panel pointer-events-auto flex items-start gap-3 rounded-2xl border border-white/20 bg-black/90 p-3.5 shadow-2xl backdrop-blur-2xl transition-all duration-300 animate-slide-up"
+            className="glass-card pointer-events-auto flex items-start gap-3 rounded-2xl p-3.5 shadow-2xl backdrop-blur-2xl transition-all duration-300 animate-slide-up"
           >
             <div className="mt-0.5">{icons[toast.type]}</div>
             <div className="flex-1 overflow-hidden">
               <div className="text-xs font-bold text-white">{toast.title}</div>
               {toast.description && (
-                <div className="mt-0.5 text-[11px] text-zinc-300 leading-snug">
+                <div className="mt-0.5 text-[11px] text-[#929B91] leading-snug">
                   {toast.description}
                 </div>
               )}

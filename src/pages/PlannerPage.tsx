@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -17,12 +18,26 @@ import {
   Search,
   Square,
   Trash2,
+  Wand2,
   Zap,
 } from 'lucide-react';
 import { CategoryBadge, PriorityBadge, StatusBadge } from '../components/ui/CategoryBadge';
+import { ScrollReveal } from '../components/ui/ScrollReveal';
+import { ScrollStageIndicator, Stage } from '../components/ui/ScrollStageIndicator';
 import { useApp } from '../context/AppContext';
-import { formatDuration } from '../lib/analytics/gapEngine';
+import {
+  calculateHonestEstimate,
+  formatDuration,
+  parseNaturalTaskInput,
+} from '../lib/analytics/gapEngine';
 import { ActivityLog, CategoryType, PriorityType, Task, TaskStatus } from '../types';
+
+const PLANNER_STAGES: Stage[] = [
+  { id: 'planner-hero', number: '01', label: 'Capacity & Budget' },
+  { id: 'planner-controls', number: '02', label: 'Quick Add & Filter' },
+  { id: 'planner-schedule', number: '03', label: 'Day Schedule' },
+  { id: 'planner-logger', number: '04', label: 'Stopwatch & Logs' },
+];
 
 export const PlannerPage: React.FC = () => {
   const {
@@ -65,6 +80,10 @@ export const PlannerPage: React.FC = () => {
   const [quickCategory, setQuickCategory] = useState<CategoryType>('Deep Work');
   const [quickDuration, setQuickDuration] = useState(60);
 
+  // Focus mode options (Stopwatch vs Pomodoro)
+  const [focusModeType, setFocusModeType] = useState<'stopwatch' | 'pomodoro'>('stopwatch');
+  const [pomodoroMinutes, setPomodoroMinutes] = useState<number>(25);
+
   // Postpone modal state
   const [postponingTaskId, setPostponingTaskId] = useState<string | null>(null);
   const [postponeTargetDate, setPostponeTargetDate] = useState(() => {
@@ -78,12 +97,6 @@ export const PlannerPage: React.FC = () => {
   const [stopwatchTaskId, setStopwatchTaskId] = useState<string>('');
   const [stopwatchCustomTitle, setStopwatchCustomTitle] = useState('');
   const [stopwatchCategory, setStopwatchCategory] = useState<CategoryType>('Deep Work');
-
-  // Log edit state
-  const [editingLogId, setEditingLogId] = useState<string | null>(null);
-  const [editDuration, setEditDuration] = useState(0);
-  const [editNotes, setEditNotes] = useState('');
-  const [logSearchQuery, setLogSearchQuery] = useState('');
 
   // Daily budget calculations
   const dayTasks = tasks.filter((t) => t.plannedDate === selectedDate);
@@ -118,18 +131,47 @@ export const PlannerPage: React.FC = () => {
     return priorityWeight[b.priority] - priorityWeight[a.priority];
   });
 
+  // Natural language parsing on quick title change
+  const handleQuickTitleChange = (val: string) => {
+    setQuickTitle(val);
+    if (val.length > 5) {
+      const parsed = parseNaturalTaskInput(val);
+      if (parsed.durationMinutes && parsed.durationMinutes !== quickDuration) {
+        setQuickDuration(parsed.durationMinutes);
+      }
+      if (parsed.category && parsed.category !== quickCategory) {
+        setQuickCategory(parsed.category);
+      }
+    }
+  };
+
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickTitle.trim()) return;
+
+    const parsed = parseNaturalTaskInput(quickTitle.trim());
+
     addTask({
-      title: quickTitle.trim(),
-      category: quickCategory,
+      title: parsed.title || quickTitle.trim(),
+      category: quickCategory || parsed.category,
       plannedDate: selectedDate,
-      estimatedDurationMinutes: Number(quickDuration) || 60,
-      priority: 'medium',
+      scheduledStartTime: parsed.startTime,
+      estimatedDurationMinutes: Number(quickDuration) || parsed.durationMinutes || 60,
+      priority: parsed.priority || 'medium',
       status: 'planned',
     });
     setQuickTitle('');
+  };
+
+  const applyTemplate = (templateTitle: string, templateCategory: CategoryType, templateMins: number) => {
+    addTask({
+      title: templateTitle,
+      category: templateCategory,
+      plannedDate: selectedDate,
+      estimatedDurationMinutes: templateMins,
+      priority: 'medium',
+      status: 'planned',
+    });
   };
 
   const handleConfirmPostpone = () => {
@@ -143,11 +185,25 @@ export const PlannerPage: React.FC = () => {
     if (stopwatchTaskType === 'planned') {
       const targetTask = tasks.find((t) => t.id === stopwatchTaskId);
       if (targetTask) {
-        startTimer(targetTask.title, targetTask.category, targetTask.id, false);
+        startTimer(
+          targetTask.title,
+          targetTask.category,
+          targetTask.id,
+          false,
+          focusModeType,
+          pomodoroMinutes
+        );
       }
     } else {
       if (!stopwatchCustomTitle.trim()) return;
-      startTimer(stopwatchCustomTitle.trim(), stopwatchCategory, null, true);
+      startTimer(
+        stopwatchCustomTitle.trim(),
+        stopwatchCategory,
+        null,
+        true,
+        focusModeType,
+        pomodoroMinutes
+      );
       setStopwatchCustomTitle('');
     }
   };
@@ -163,160 +219,213 @@ export const PlannerPage: React.FC = () => {
     };
   };
 
-  const timerDigits = activeTimer
-    ? formatTimerDigits(activeTimer.elapsedSeconds)
-    : { hours: '00', minutes: '00', seconds: '00' };
-
-  const filteredLogs = logs.filter((log) => {
-    if (logSearchQuery.trim()) {
-      const q = logSearchQuery.toLowerCase();
-      const matchTitle = log.taskTitle.toLowerCase().includes(q);
-      const matchNotes = log.reflectionNotes?.toLowerCase().includes(q) || log.interruptionNotes?.toLowerCase().includes(q);
-      if (!matchTitle && !matchNotes) return false;
-    }
-    return true;
+  const formattedDate = new Date(selectedDate + 'T00:00:00Z').toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
   });
 
-  const categories: CategoryType[] = [
-    'Deep Work',
-    'Meetings & Syncs',
-    'Creative & Design',
-    'Learning & Research',
-    'Admin & Operations',
-    'Health & Personal',
-  ];
-
   return (
-    <div className="space-y-6 pb-28 animate-fade-in">
-      {/* Header with Sub-Tab Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
-            Planner & Activity Tracker
-          </h1>
-          <p className="mt-1 text-xs text-zinc-400">
-            Calibrate scheduled intention against recorded real execution
-          </p>
-        </div>
+    <div className="relative space-y-44 sm:space-y-52 pb-48">
+      {/* Chapter navigation rail */}
+      <ScrollStageIndicator stages={PLANNER_STAGES} />
 
-        {/* Crystalmorphic Sub-View Pill */}
-        <div className="flex rounded-full border border-white/15 bg-white/[0.04] backdrop-blur-xl p-1 self-start sm:self-auto shadow-sm">
-          <button
-            onClick={() => setPlannerSubTab('schedule')}
-            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
-              plannerSubTab === 'schedule'
-                ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Calendar className="h-3.5 w-3.5" />
-            <span>Daily Schedule ({dayTasks.length})</span>
-          </button>
-          <button
-            onClick={() => setPlannerSubTab('logger')}
-            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
-              plannerSubTab === 'logger'
-                ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Clock className="h-3.5 w-3.5" />
-            <span>Stopwatch & Logs ({logs.length})</span>
-          </button>
-        </div>
-      </div>
-
-      {plannerSubTab === 'schedule' ? (
-        <>
-          {/* Daily Capacity Budget Crystal Card */}
-          <div className="crystal-panel relative overflow-hidden rounded-2xl p-5 backdrop-blur-2xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.07] via-transparent to-transparent" />
-
-            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 border border-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.25)]">
-                  <Clock className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                    Daily Capacity Allocation
-                  </div>
-                  <div className="flex items-baseline gap-2 mt-0.5">
-                    <span className="font-mono text-xl font-black text-white">
-                      {formatDuration(totalPlannedMinutes)}
-                    </span>
-                    <span className="text-xs text-zinc-400">
-                      / {(availableMinutes / 60).toFixed(1)}h available budget ({preferences.workHoursStart} - {preferences.workHoursEnd})
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-mono font-bold border backdrop-blur-md ${
-                  isOverplanned
-                    ? 'border-white/40 bg-white/15 text-white shadow-[0_0_10px_rgba(255,255,255,0.3)]'
-                    : 'border-white/20 bg-white/[0.06] text-white'
-                }`}
-              >
-                {isOverplanned ? `Over capacity by +${formatDuration(overageMinutes)}` : `${formatDuration(availableMinutes - totalPlannedMinutes)} available`}
-              </span>
-            </div>
-
-            <div className="relative z-10 h-2 w-full overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full bg-white transition-all duration-500 shadow-[0_0_10px_rgba(255,255,255,0.8)]"
-                style={{ width: `${Math.min(100, Math.round((totalPlannedMinutes / availableMinutes) * 100))}%` }}
-              />
-            </div>
-
-            {isOverplanned && (
-              <div className="relative z-10 mt-4 flex items-start gap-3 rounded-xl border border-white/20 bg-white/[0.06] p-3.5 text-xs text-white backdrop-blur-md">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-white mt-0.5" />
-                <div className="space-y-1">
-                  <span className="font-bold text-white">
-                    Planning Intelligence Warning: Overplanning Detected
-                  </span>
-                  <p className="text-[11px] text-zinc-300 leading-relaxed">
-                    Your planned commitments exceed your configured available workday by {formatDuration(overageMinutes)}. Consider postponing non-urgent tasks to protect execution fidelity.
-                  </p>
-                </div>
-              </div>
-            )}
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 1: HERO & WORKDAY CAPACITY (Slow Dolby Atmosphere)     */}
+      {/* ------------------------------------------------------------- */}
+      <section id="planner-hero" className="relative pt-6 sm:pt-16 text-center min-h-[70vh] flex flex-col justify-center">
+        <ScrollReveal mode="inView" duration={1.8} yOffset={40} blurAmount={12}>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.04] px-4 py-1.5 text-xs text-zinc-300 backdrop-blur-2xl mb-6 shadow-sm">
+            <span className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_8px_#fff] animate-pulse" />
+            <span className="font-medium">{formattedDate}</span>
+            <span className="text-zinc-500">•</span>
+            <span className="font-mono text-zinc-400">
+              {eligibleDayTasks.length} {eligibleDayTasks.length === 1 ? 'Commitment' : 'Commitments'}
+            </span>
           </div>
 
-          {/* Quick Add Inline Box */}
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white max-w-4xl mx-auto leading-[1.08]">
+            Plan your hours with calm honesty.
+          </h1>
+
+          <p className="mt-6 text-base sm:text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
+            Scheduling within your genuine workday capacity protects you from evening burnout and builds a realistic rhythm.
+          </p>
+
+          {/* Sub-tab view toggle pill */}
+          <div className="mt-8 inline-flex rounded-full border border-white/20 bg-white/[0.04] p-1.5 backdrop-blur-2xl shadow-xl">
+            <button
+              onClick={() => setPlannerSubTab('schedule')}
+              className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all ${
+                plannerSubTab === 'schedule'
+                  ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              <span>Today's Schedule</span>
+            </button>
+            <button
+              onClick={() => setPlannerSubTab('logger')}
+              className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all ${
+                plannerSubTab === 'logger'
+                  ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Zap className="h-3.5 w-3.5" />
+              <span>Live Stopwatch & Logs</span>
+            </button>
+          </div>
+        </ScrollReveal>
+
+        {/* Big Workday Capacity Hero Card */}
+        <ScrollReveal mode="inView" delay={0.25} duration={1.9} yOffset={60} blurAmount={14}>
+          <div className="crystal-panel relative max-w-3xl mx-auto mt-12 rounded-3xl p-7 sm:p-9 backdrop-blur-3xl text-left border border-white/20 shadow-[0_35px_120px_rgba(0,0,0,0.95)]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-transparent" />
+
+            <div className="relative z-10 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                    Capacity Ledger
+                  </span>
+                  <h3 className="text-2xl font-black text-white mt-1">
+                    {formatDuration(totalPlannedMinutes)} scheduled of {formatDuration(availableMinutes)} workday
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-mono font-bold border ${
+                      isOverplanned
+                        ? 'border-white bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.6)]'
+                        : 'border-white/20 bg-white/10 text-white'
+                    }`}
+                  >
+                    {isOverplanned
+                      ? `Overbooked by ${formatDuration(overageMinutes)}`
+                      : `${formatDuration(availableMinutes - totalPlannedMinutes)} buffer remaining`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Visual gauge progress bar */}
+              <div className="space-y-2">
+                <div className="relative h-3 w-full overflow-hidden rounded-full bg-black/60 border border-white/15 p-0.5">
+                  <div
+                    className="h-full rounded-full bg-white transition-all duration-700 shadow-[0_0_12px_#fff]"
+                    style={{
+                      width: `${Math.min((totalPlannedMinutes / availableMinutes) * 100, 100)}%`,
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[11px] font-mono text-zinc-400">
+                  <span>0h Start</span>
+                  <span>Target: {availableMinutes / 60}h Working Budget</span>
+                  <span>{isOverplanned ? 'Overloaded' : 'Balanced'}</span>
+                </div>
+              </div>
+
+              {isOverplanned && (
+                <div className="rounded-2xl border border-white/20 bg-white/[0.04] p-4 text-xs text-zinc-200 flex items-start gap-3">
+                  <AlertTriangle className="h-4 w-4 text-white shrink-0 mt-0.5" />
+                  <p>
+                    You have planned more work than your available hours allow today. Consider postponing non-urgent tasks to tomorrow to keep your day calm and realistic.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </ScrollReveal>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 2: QUICK PLANNING & SMART FILTERS                    */}
+      {/* ------------------------------------------------------------- */}
+      <section id="planner-controls" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="text-center sm:text-left space-y-2">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-6 rounded-full bg-white/40" />
+              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                Chapter 02
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+              Quick Task Creation & Smart Filters
+            </h2>
+            <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+              Add new tasks naturally or slice your day by focus category, priority, or completion status.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        {/* 1-Tap Quick Templates */}
+        <ScrollReveal mode="inView" delay={0.1} duration={1.6} yOffset={30}>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+            <span className="text-zinc-500 font-mono text-[11px] whitespace-nowrap">Instant Templates:</span>
+            <button
+              onClick={() => applyTemplate('Morning Standup & Sync', 'Meetings & Syncs', 15)}
+              className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+            >
+              + ⚡ Standup (15m)
+            </button>
+            <button
+              onClick={() => applyTemplate('Deep Focus Flow Block', 'Deep Work', 90)}
+              className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+            >
+              + 🧠 Deep Flow (90m)
+            </button>
+            <button
+              onClick={() => applyTemplate('Inbox Zero & Team Comms', 'Admin & Operations', 30)}
+              className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+            >
+              + 📬 Inbox & Slacks (30m)
+            </button>
+            <button
+              onClick={() => applyTemplate('Recharge Walk & Coffee', 'Health & Personal', 15)}
+              className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+            >
+              + ☕ Recharge Break (15m)
+            </button>
+          </div>
+        </ScrollReveal>
+
+        {/* Quick Add Inline Box */}
+        <ScrollReveal mode="inView" delay={0.15} duration={1.8} yOffset={60} blurAmount={10}>
           <form
             onSubmit={handleQuickAdd}
-            className="crystal-panel relative overflow-hidden flex flex-col sm:flex-row items-stretch gap-2.5 rounded-2xl p-2.5 backdrop-blur-2xl"
+            className="crystal-panel flex flex-col sm:flex-row items-stretch gap-3 rounded-2xl p-3.5 backdrop-blur-2xl border border-white/20 shadow-xl"
           >
             <div className="relative flex-1">
               <input
                 type="text"
                 required
                 value={quickTitle}
-                onChange={(e) => setQuickTitle(e.target.value)}
-                placeholder="Quick-add task title (e.g. Conduct database failover drill)..."
-                className="w-full rounded-xl border border-white/10 bg-black/60 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:border-white focus:outline-none"
+                onChange={(e) => handleQuickTitleChange(e.target.value)}
+                placeholder="What do you want to accomplish? Try &quot;Database failover drill for 1h at 3pm&quot;..."
+                className="w-full rounded-xl border border-white/10 bg-black/60 px-4 py-3 text-sm text-white placeholder-zinc-500 focus:border-white focus:outline-none transition-colors"
               />
             </div>
 
             <select
               value={quickCategory}
               onChange={(e) => setQuickCategory(e.target.value as CategoryType)}
-              className="rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-xs text-zinc-200 focus:border-white focus:outline-none"
+              className="rounded-xl border border-white/10 bg-black/60 px-3.5 py-2.5 text-xs text-zinc-200 focus:border-white focus:outline-none"
             >
-              {categories.map((c) => (
-                <option key={c} value={c} className="bg-black text-white">
-                  {c}
-                </option>
-              ))}
+              <option value="Deep Work" className="bg-black text-white">Deep Work</option>
+              <option value="Meetings & Syncs" className="bg-black text-white">Meetings & Syncs</option>
+              <option value="Creative & Design" className="bg-black text-white">Creative & Design</option>
+              <option value="Learning & Research" className="bg-black text-white">Learning & Research</option>
+              <option value="Admin & Operations" className="bg-black text-white">Admin & Operations</option>
+              <option value="Health & Personal" className="bg-black text-white">Health & Personal</option>
             </select>
 
             <select
               value={quickDuration}
               onChange={(e) => setQuickDuration(Number(e.target.value))}
-              className="rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-xs font-mono text-zinc-200 focus:border-white focus:outline-none"
+              className="rounded-xl border border-white/10 bg-black/60 px-3.5 py-2.5 text-xs font-mono text-zinc-200 focus:border-white focus:outline-none"
             >
               <option value={15} className="bg-black text-white">15m</option>
               <option value={30} className="bg-black text-white">30m</option>
@@ -329,23 +438,25 @@ export const PlannerPage: React.FC = () => {
 
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-black text-black hover:bg-zinc-100 active:scale-[0.98] transition-all shadow-[0_0_15px_rgba(255,255,255,0.3)]"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white px-6 py-2.5 text-xs font-black text-black hover:bg-zinc-100 transition-all shadow-[0_0_15px_rgba(255,255,255,0.3)] shrink-0"
             >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Add</span>
+              <Plus className="h-4 w-4" />
+              <span>Add Task</span>
             </button>
           </form>
+        </ScrollReveal>
 
-          {/* Filter Bar */}
+        {/* Filter Bar */}
+        <ScrollReveal mode="inView" delay={0.25} duration={1.8} yOffset={50} blurAmount={8}>
           <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
+              <Search className="absolute left-3.5 top-3 h-4 w-4 text-zinc-500" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search tasks, descriptions, or tags..."
-                className="w-full rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-md pl-9 pr-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:border-white focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-md pl-10 pr-4 py-2.5 text-xs text-white placeholder-zinc-500 focus:border-white focus:outline-none transition-colors"
               />
             </div>
 
@@ -353,20 +464,21 @@ export const PlannerPage: React.FC = () => {
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-md px-3 py-1.5 text-xs text-zinc-300 focus:border-white focus:outline-none"
+                className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-md px-3.5 py-2 text-xs text-zinc-300 focus:border-white focus:outline-none"
               >
                 <option value="all" className="bg-black text-white">All Categories</option>
-                {categories.map((c) => (
-                  <option key={c} value={c} className="bg-black text-white">
-                    {c}
-                  </option>
-                ))}
+                <option value="Deep Work" className="bg-black text-white">Deep Work</option>
+                <option value="Meetings & Syncs" className="bg-black text-white">Meetings & Syncs</option>
+                <option value="Creative & Design" className="bg-black text-white">Creative & Design</option>
+                <option value="Learning & Research" className="bg-black text-white">Learning & Research</option>
+                <option value="Admin & Operations" className="bg-black text-white">Admin & Operations</option>
+                <option value="Health & Personal" className="bg-black text-white">Health & Personal</option>
               </select>
 
               <select
                 value={selectedPriority}
                 onChange={(e) => setSelectedPriority(e.target.value)}
-                className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-md px-3 py-1.5 text-xs text-zinc-300 focus:border-white focus:outline-none"
+                className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-md px-3.5 py-2 text-xs text-zinc-300 focus:border-white focus:outline-none"
               >
                 <option value="all" className="bg-black text-white">All Priorities</option>
                 <option value="critical" className="bg-black text-white">Critical</option>
@@ -378,99 +490,153 @@ export const PlannerPage: React.FC = () => {
               <select
                 value={selectedStatusFilter}
                 onChange={(e) => setSelectedStatusFilter(e.target.value)}
-                className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-md px-3 py-1.5 text-xs text-zinc-300 focus:border-white focus:outline-none"
+                className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-md px-3.5 py-2 text-xs text-zinc-300 focus:border-white focus:outline-none"
               >
                 <option value="all" className="bg-black text-white">All Statuses</option>
                 <option value="planned" className="bg-black text-white">Planned</option>
                 <option value="in_progress" className="bg-black text-white">In Progress</option>
                 <option value="completed" className="bg-black text-white">Completed</option>
                 <option value="postponed" className="bg-black text-white">Postponed</option>
-                <option value="cancelled" className="bg-black text-white">Cancelled</option>
               </select>
             </div>
           </div>
+        </ScrollReveal>
+      </section>
 
-          {/* Task List */}
-          <div className="space-y-3">
-            {sortedTasks.length === 0 ? (
-              <div className="crystal-panel flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 p-8 text-center backdrop-blur-xl">
-                <p className="text-sm font-semibold text-zinc-300">No matching tasks found.</p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  Clear your search filters or schedule a new task for {selectedDate}.
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 3: TIME-BLOCKED DAY SCHEDULE (Sequential Revelations) */}
+      {/* ------------------------------------------------------------- */}
+      <section id="planner-schedule" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2">
+                <span className="h-1.5 w-6 rounded-full bg-white/40" />
+                <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                  Chapter 03
+                </span>
+              </div>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+                Today's Action Schedule
+              </h2>
+              <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+                Execute your day block by block. Start the live stopwatch, log time, or postpone with one click.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setEditingTask(null);
+                setIsTaskModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-black text-black hover:bg-zinc-100 shadow-[0_0_20px_rgba(255,255,255,0.4)] transition-all self-start sm:self-auto"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Custom Task</span>
+            </button>
+          </div>
+        </ScrollReveal>
+
+        <div className="space-y-4">
+          {sortedTasks.length === 0 ? (
+            <ScrollReveal mode="inView" duration={1.6} yOffset={40}>
+              <div className="crystal-panel flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 p-12 text-center backdrop-blur-2xl">
+                <Calendar className="h-8 w-8 text-zinc-500 mb-2" />
+                <p className="text-sm font-bold text-white">No tasks match your filter criteria</p>
+                <p className="mt-1 text-xs text-zinc-400 max-w-sm">
+                  Add a task above or clear your filters to view your commitments for this day.
                 </p>
               </div>
-            ) : (
-              sortedTasks.map((task) => {
-                const isTimerActive = activeTimer?.taskId === task.id;
+            </ScrollReveal>
+          ) : (
+            sortedTasks.map((task, index) => {
+              const isTimerRunning = activeTimer?.taskId === task.id;
+              const isCompleted = task.status === 'completed';
+              const honestCalc = calculateHonestEstimate(task.estimatedDurationMinutes, task.category, tasks, logs);
 
-                return (
+              return (
+                <ScrollReveal
+                  key={task.id}
+                  mode="inView"
+                  delay={Math.min(index * 0.09, 0.4)}
+                  duration={1.6}
+                  yOffset={50}
+                  blurAmount={8}
+                >
                   <div
-                    key={task.id}
-                    className={`crystal-panel group rounded-2xl transition-all duration-200 p-4 ${
-                      task.status === 'completed'
-                        ? 'opacity-70 bg-white/[0.02]'
-                        : 'bg-white/[0.04] hover:border-white/30'
+                    className={`crystal-panel group relative overflow-hidden rounded-2xl p-5 backdrop-blur-2xl border transition-all duration-300 ${
+                      isCompleted
+                        ? 'border-white/10 bg-white/[0.02] opacity-70'
+                        : 'border-white/15 bg-white/[0.04] hover:border-white/30'
                     }`}
                   >
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      {/* Left: Task Content */}
+                      <div className="flex items-start gap-4 flex-1 min-w-0">
                         <button
                           onClick={() =>
-                            setTaskStatus(
-                              task.id,
-                              task.status === 'completed' ? 'planned' : 'completed'
-                            )
+                            setTaskStatus(task.id, isCompleted ? 'planned' : 'completed')
                           }
-                          className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${
-                            task.status === 'completed'
+                          className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border transition-all ${
+                            isCompleted
                               ? 'border-white bg-white text-black shadow-[0_0_8px_rgba(255,255,255,0.8)]'
-                              : 'border-zinc-700 bg-zinc-900 hover:border-white'
+                              : 'border-white/20 bg-black/60 hover:border-white text-transparent'
                           }`}
                         >
-                          {task.status === 'completed' && <CheckCircle2 className="h-4 w-4 stroke-[3]" />}
+                          <CheckCircle2 className="h-4 w-4" />
                         </button>
 
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
+                        <div className="space-y-1.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-2.5 flex-wrap">
                             <span
-                              className={`text-sm font-bold truncate ${
-                                task.status === 'completed' ? 'line-through text-zinc-500' : 'text-white'
+                              className={`text-base font-bold truncate ${
+                                isCompleted ? 'line-through text-zinc-500' : 'text-white'
                               }`}
                             >
                               {task.title}
                             </span>
+                            <CategoryBadge category={task.category} size="sm" />
                             <PriorityBadge priority={task.priority} />
                             <StatusBadge status={task.status} />
 
-                            {task.postponeCount && task.postponeCount > 0 ? (
-                              <span className="rounded-full bg-white/10 border border-white/20 px-2 py-0.5 text-[10px] font-mono text-zinc-300">
-                                Deferred {task.postponeCount}x (originally {task.postponedFrom})
-                              </span>
-                            ) : null}
+                            {/* 1-Click Honest Multiplier Applicator */}
+                            {honestCalc.hasAdjustment && !isCompleted && (
+                              <button
+                                onClick={() =>
+                                  updateTask({
+                                    ...task,
+                                    estimatedDurationMinutes: honestCalc.recommendedMinutes,
+                                  })
+                                }
+                                className="inline-flex items-center gap-1 rounded-full border border-white/25 bg-white/10 px-2.5 py-0.5 text-[11px] font-mono text-white hover:bg-white hover:text-black transition-all shadow-sm"
+                                title={`${honestCalc.explanation} Click to update estimate.`}
+                              >
+                                <Wand2 className="h-3 w-3" />
+                                <span>⚡ Honest: {formatDuration(honestCalc.recommendedMinutes)}</span>
+                              </button>
+                            )}
                           </div>
 
                           {task.description && (
-                            <p className="text-xs text-zinc-400 line-clamp-2">
-                              {task.description}
-                            </p>
+                            <p className="text-xs text-zinc-400 line-clamp-2">{task.description}</p>
                           )}
 
-                          <div className="flex items-center gap-3 text-xs text-zinc-400 flex-wrap pt-1">
-                            <CategoryBadge category={task.category} size="sm" />
+                          <div className="flex items-center gap-4 text-xs text-zinc-400 flex-wrap pt-0.5">
+                            <span className="font-mono text-zinc-300 flex items-center gap-1">
+                              <Clock className="h-3 w-3 text-zinc-500" />
+                              {formatDuration(task.estimatedDurationMinutes)}
+                            </span>
                             {task.scheduledStartTime && (
-                              <span className="font-mono text-[11px] text-zinc-300">
-                                @{task.scheduledStartTime}
+                              <span className="font-mono text-zinc-400">
+                                @ {task.scheduledStartTime}
                               </span>
                             )}
-                            <span className="font-mono text-[11px] text-zinc-300">
-                              Est: {formatDuration(task.estimatedDurationMinutes)}
-                            </span>
                             {task.tags && task.tags.length > 0 && (
-                              <div className="flex items-center gap-1">
+                              <div className="flex gap-1.5">
                                 {task.tags.map((tag) => (
                                   <span
                                     key={tag}
-                                    className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 border border-white/10"
+                                    className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 text-[10px] text-zinc-400"
                                   >
                                     #{tag}
                                   </span>
@@ -481,21 +647,30 @@ export const PlannerPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 self-end md:self-center shrink-0">
-                        {!isTimerActive ? (
-                          <button
-                            onClick={() => startTimer(task.title, task.category, task.id)}
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:border-white/40 hover:text-white transition-colors"
-                            title="Start stopwatch tracking"
-                          >
-                            <Play className="h-3.5 w-3.5" />
-                            <span>Track</span>
-                          </button>
+                      {/* Right: Actions */}
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        {!isTimerRunning ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => startTimer(task.title, task.category, task.id, false, 'stopwatch')}
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white hover:bg-white/15 transition-colors"
+                              title="Start live stopwatch"
+                            >
+                              <Play className="h-3.5 w-3.5" />
+                              <span>Timer</span>
+                            </button>
+                            <button
+                              onClick={() => startTimer(task.title, task.category, task.id, false, 'pomodoro', 25)}
+                              className="inline-flex items-center gap-1 rounded-xl border border-white/15 bg-white/[0.04] px-2.5 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-white/15 transition-colors"
+                              title="Start 25m Pomodoro"
+                            >
+                              <span>25m Pomo</span>
+                            </button>
+                          </div>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-xl border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-mono font-bold text-white shadow-sm">
+                          <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/15 px-3 py-2 text-xs font-mono font-bold text-white shadow-sm">
                             <span className="h-2 w-2 rounded-full bg-white animate-ping" />
-                            Recording
+                            Running
                           </span>
                         )}
 
@@ -504,17 +679,19 @@ export const PlannerPage: React.FC = () => {
                             setPreselectedLogTask(task);
                             setIsLogModalOpen(true);
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition-colors shadow-sm"
-                          title="Log actual completion time"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-bold text-white hover:bg-white/20 transition-colors shadow-sm"
+                          title="Log activity manually"
                         >
                           <Zap className="h-3.5 w-3.5 fill-white" />
-                          <span>Log Time</span>
+                          <span>Log</span>
                         </button>
 
                         <button
-                          onClick={() => setPostponingTaskId(task.id)}
-                          className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
-                          title="Postpone Task"
+                          onClick={() => {
+                            setPostponingTaskId(task.id);
+                          }}
+                          className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                          title="Postpone to tomorrow"
                         >
                           <MoveRight className="h-3.5 w-3.5" />
                         </button>
@@ -524,15 +701,15 @@ export const PlannerPage: React.FC = () => {
                             setEditingTask(task);
                             setIsTaskModalOpen(true);
                           }}
-                          className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-zinc-400 hover:text-white transition-colors"
-                          title="Edit task parameters"
+                          className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                          title="Edit Task"
                         >
-                          <MoreVertical className="h-3.5 w-3.5" />
+                          <Edit2 className="h-3.5 w-3.5" />
                         </button>
 
                         <button
                           onClick={() => deleteTask(task.id)}
-                          className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                          className="p-2 rounded-xl border border-white/10 text-zinc-500 hover:text-white hover:bg-white/10 transition-colors"
                           title="Delete Task"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -540,346 +717,347 @@ export const PlannerPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                );
-              })
-            )}
+                </ScrollReveal>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 4: LIVE FOCUS STOPWATCH & LOGS                       */}
+      {/* ------------------------------------------------------------- */}
+      <section id="planner-logger" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-6 rounded-full bg-white/40" />
+              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                Chapter 04
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+              Live Focus Stopwatch & Activity Logs
+            </h2>
+            <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+              Track focused blocks down to the second, account for interruptions, and inspect verified logs.
+            </p>
           </div>
-        </>
-      ) : (
-        /* Stopwatch and Logs Tab */
-        <div className="space-y-6">
-          {/* Active Live Stopwatch Station */}
-          <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 shadow-2xl backdrop-blur-2xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-transparent" />
+        </ScrollReveal>
 
-            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex flex-col items-center md:items-start space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className={`h-2.5 w-2.5 rounded-full ${activeTimer?.isRunning ? 'bg-white shadow-[0_0_8px_#fff] animate-ping' : 'bg-zinc-600'}`} />
-                  <span className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-400">
-                    {activeTimer ? (activeTimer.isRunning ? 'Active Recording' : 'Timer Paused') : 'Stopwatch Ready'}
-                  </span>
-                </div>
+        {/* Active Stopwatch Card */}
+        {activeTimer ? (
+          <ScrollReveal mode="inView" delay={0.12} duration={1.8} yOffset={60} blurAmount={12}>
+            <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 sm:p-9 backdrop-blur-3xl border border-white/25 shadow-2xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-transparent" />
 
-                <div className="flex items-baseline gap-1 font-mono text-5xl sm:text-6xl font-black tracking-tight text-white my-2">
-                  <span className="text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]">{timerDigits.hours}</span>
-                  <span className="text-zinc-600">:</span>
-                  <span className="text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]">{timerDigits.minutes}</span>
-                  <span className="text-zinc-600">:</span>
-                  <span className="text-zinc-400">{timerDigits.seconds}</span>
-                </div>
-
-                {activeTimer && (
-                  <div className="flex items-center gap-3 text-xs text-zinc-300">
-                    <span className="font-semibold text-white truncate max-w-sm">
-                      {activeTimer.taskTitle}
+              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-7">
+                <div className="space-y-2 text-center md:text-left">
+                  <div className="flex items-center justify-center md:justify-start gap-2">
+                    <span className="h-2 w-2 rounded-full bg-white animate-ping" />
+                    <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-bold">
+                      {activeTimer.mode === 'pomodoro' ? 'Pomodoro Focus Block' : 'Open Stopwatch'}
                     </span>
                     <CategoryBadge category={activeTimer.category} size="sm" />
-                    {activeTimer.isUnplanned && (
-                      <span className="text-zinc-300 font-mono text-[11px] border border-white/20 rounded-full px-2 py-0.5 bg-white/5">
-                        ⚡ Spontaneous
-                      </span>
-                    )}
                   </div>
-                )}
-              </div>
+                  <h3 className="text-2xl sm:text-3xl font-black text-white">{activeTimer.taskTitle}</h3>
+                  <div className="flex items-center justify-center md:justify-start gap-4 text-xs font-mono text-zinc-400">
+                    <span>Started @ {new Date(activeTimer.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>•</span>
+                    <span>{activeTimer.interruptionCount} interruptions recorded</span>
+                  </div>
+                </div>
 
-              {/* Controls */}
-              {activeTimer ? (
-                <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-                  {activeTimer.isRunning ? (
-                    <button
-                      onClick={pauseTimer}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold text-white hover:bg-white/20 transition-colors"
-                    >
-                      <Pause className="h-4 w-4" />
-                      <span>Pause</span>
-                    </button>
-                  ) : (
+                {/* Big Digital Numbers */}
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    if (activeTimer.mode === 'pomodoro' && activeTimer.targetDurationMinutes) {
+                      const remainSec = Math.max(0, activeTimer.targetDurationMinutes * 60 - activeTimer.elapsedSeconds);
+                      const digits = formatTimerDigits(remainSec);
+                      return (
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] font-mono uppercase text-zinc-400 mb-1">Time Remaining</span>
+                          <div className="font-mono text-4xl sm:text-6xl font-black text-white tracking-widest px-6 py-3 rounded-2xl bg-black/80 border border-white/20 shadow-inner">
+                            {digits.minutes}:{digits.seconds}
+                          </div>
+                        </div>
+                      );
+                    }
+                    const digits = formatTimerDigits(activeTimer.elapsedSeconds);
+                    return (
+                      <div className="font-mono text-4xl sm:text-6xl font-black text-white tracking-widest px-6 py-3 rounded-2xl bg-black/80 border border-white/20 shadow-inner">
+                        {digits.hours}:{digits.minutes}:{digits.seconds}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Control Buttons */}
+                <div className="flex items-center gap-3 flex-wrap justify-center">
+                  {!activeTimer.isRunning ? (
                     <button
                       onClick={resumeTimer}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-black hover:bg-zinc-100 shadow-[0_0_15px_rgba(255,255,255,0.4)]"
+                      className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-xs font-black text-black hover:bg-zinc-100 transition-all shadow-[0_0_15px_rgba(255,255,255,0.4)]"
                     >
                       <Play className="h-4 w-4" />
                       <span>Resume</span>
                     </button>
+                  ) : (
+                    <button
+                      onClick={pauseTimer}
+                      className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-2.5 text-xs font-bold text-white hover:bg-white/20 transition-all"
+                    >
+                      <Pause className="h-4 w-4" />
+                      <span>Pause</span>
+                    </button>
                   )}
 
                   <button
-                    onClick={addTimerInterruption}
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-zinc-200 hover:text-white hover:bg-white/10"
+                    onClick={() => addTimerInterruption()}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
                   >
-                    <AlertCircle className="h-4 w-4 text-white" />
-                    <span>+1 Interruption ({activeTimer.interruptionCount})</span>
+                    <AlertCircle className="h-4 w-4" />
+                    <span>+ Interruption ({activeTimer.interruptionCount})</span>
                   </button>
 
                   <button
-                    onClick={() => finishTimerAndSave()}
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-black hover:bg-zinc-100 shadow-[0_0_15px_rgba(255,255,255,0.4)]"
+                    onClick={() => finishTimerAndSave('Completed session')}
+                    className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-xs font-black text-black hover:bg-zinc-100 transition-all shadow-[0_0_15px_rgba(255,255,255,0.4)]"
                   >
-                    <Square className="h-4 w-4 fill-black" />
-                    <span>Finish & Save</span>
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>Save Log</span>
                   </button>
 
                   <button
                     onClick={discardTimer}
-                    className="p-3 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10"
-                    title="Discard Timer"
+                    className="p-2.5 rounded-xl border border-white/10 text-zinc-500 hover:text-white transition-colors"
+                    title="Discard session"
                   >
                     <RotateCcw className="h-4 w-4" />
                   </button>
                 </div>
-              ) : (
-                <form
-                  onSubmit={handleStartNewTimer}
-                  className="flex flex-col sm:flex-row items-stretch gap-2.5 w-full md:w-auto"
-                >
-                  <div className="flex rounded-full border border-white/15 bg-white/[0.04] p-0.5">
+              </div>
+            </div>
+          </ScrollReveal>
+        ) : (
+          /* Start New Stopwatch / Pomodoro Form */
+          <ScrollReveal mode="inView" delay={0.12} duration={1.8} yOffset={60} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl border border-white/20 shadow-xl">
+              <form onSubmit={handleStartNewTimer} className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-bold">
+                      Focus Session Launcher
+                    </span>
+                    <div className="flex rounded-full border border-white/15 bg-white/[0.04] p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setFocusModeType('stopwatch')}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                          focusModeType === 'stopwatch' ? 'bg-white text-black font-bold' : 'text-zinc-400'
+                        }`}
+                      >
+                        Open Stopwatch
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFocusModeType('pomodoro')}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                          focusModeType === 'pomodoro' ? 'bg-white text-black font-bold' : 'text-zinc-400'
+                        }`}
+                      >
+                        Pomodoro Block
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex rounded-full border border-white/15 bg-white/[0.04] p-0.5 self-start sm:self-auto">
                     <button
                       type="button"
                       onClick={() => setStopwatchTaskType('planned')}
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                        stopwatchTaskType === 'planned' ? 'bg-white text-black font-bold shadow-sm' : 'text-zinc-400 hover:text-white'
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                        stopwatchTaskType === 'planned' ? 'bg-white text-black font-bold' : 'text-zinc-400'
                       }`}
                     >
-                      From Plan
+                      Planned Task
                     </button>
                     <button
                       type="button"
                       onClick={() => setStopwatchTaskType('unplanned')}
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                        stopwatchTaskType === 'unplanned' ? 'bg-white text-black font-bold shadow-sm' : 'text-zinc-400 hover:text-white'
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                        stopwatchTaskType === 'unplanned' ? 'bg-white text-black font-bold' : 'text-zinc-400'
                       }`}
                     >
-                      Unplanned
+                      Spontaneous Focus
                     </button>
                   </div>
+                </div>
 
+                <div className="flex flex-col sm:flex-row items-stretch gap-3">
                   {stopwatchTaskType === 'planned' ? (
                     <select
-                      required
                       value={stopwatchTaskId}
                       onChange={(e) => setStopwatchTaskId(e.target.value)}
-                      className="rounded-xl border border-white/15 bg-black/60 px-3.5 py-2 text-xs text-white max-w-xs focus:border-white focus:outline-none"
+                      className="flex-1 rounded-xl border border-white/10 bg-black/60 px-4 py-3 text-xs text-white focus:border-white focus:outline-none"
                     >
-                      <option value="" className="bg-black text-white">Select a planned task...</option>
-                      {tasks
-                        .filter((t) => t.status !== 'cancelled' && t.status !== 'completed')
-                        .map((t) => (
-                          <option key={t.id} value={t.id} className="bg-black text-white">
-                            {t.title} ({t.estimatedDurationMinutes}m)
-                          </option>
-                        ))}
+                      <option value="" className="bg-black text-white">Select a planned task from today...</option>
+                      {eligibleDayTasks.map((t) => (
+                        <option key={t.id} value={t.id} className="bg-black text-white">
+                          {t.title} ({t.category} • {formatDuration(t.estimatedDurationMinutes)})
+                        </option>
+                      ))}
                     </select>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        required
-                        placeholder="Describe spontaneous activity..."
-                        value={stopwatchCustomTitle}
-                        onChange={(e) => setStopwatchCustomTitle(e.target.value)}
-                        className="rounded-xl border border-white/15 bg-black/60 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:border-white focus:outline-none min-w-[200px]"
-                      />
-                      <select
-                        value={stopwatchCategory}
-                        onChange={(e) => setStopwatchCategory(e.target.value as CategoryType)}
-                        className="rounded-xl border border-white/15 bg-black/60 px-3 py-2 text-xs text-zinc-300 focus:border-white focus:outline-none"
-                      >
-                        {categories.map((c) => (
-                          <option key={c} value={c} className="bg-black text-white">
-                            {c}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={stopwatchCustomTitle}
+                      onChange={(e) => setStopwatchCustomTitle(e.target.value)}
+                      placeholder="What are you focusing on right now?..."
+                      className="flex-1 rounded-xl border border-white/10 bg-black/60 px-4 py-3 text-xs text-white placeholder-zinc-500 focus:border-white focus:outline-none"
+                    />
+                  )}
+
+                  {stopwatchTaskType === 'unplanned' && (
+                    <select
+                      value={stopwatchCategory}
+                      onChange={(e) => setStopwatchCategory(e.target.value as CategoryType)}
+                      className="rounded-xl border border-white/10 bg-black/60 px-4 py-3 text-xs text-white focus:border-white focus:outline-none"
+                    >
+                      <option value="Deep Work" className="bg-black text-white">Deep Work</option>
+                      <option value="Meetings & Syncs" className="bg-black text-white">Meetings & Syncs</option>
+                      <option value="Creative & Design" className="bg-black text-white">Creative & Design</option>
+                      <option value="Learning & Research" className="bg-black text-white">Learning & Research</option>
+                      <option value="Admin & Operations" className="bg-black text-white">Admin & Operations</option>
+                      <option value="Health & Personal" className="bg-black text-white">Health & Personal</option>
+                    </select>
+                  )}
+
+                  {focusModeType === 'pomodoro' && (
+                    <select
+                      value={pomodoroMinutes}
+                      onChange={(e) => setPomodoroMinutes(Number(e.target.value))}
+                      className="rounded-xl border border-white/10 bg-black/60 px-3.5 py-3 text-xs font-mono text-zinc-200 focus:border-white focus:outline-none"
+                    >
+                      <option value={15} className="bg-black text-white">15m Sprint</option>
+                      <option value={25} className="bg-black text-white">25m Standard</option>
+                      <option value={45} className="bg-black text-white">45m Deep Flow</option>
+                      <option value={60} className="bg-black text-white">60m Power Block</option>
+                    </select>
                   )}
 
                   <button
                     type="submit"
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-black text-black hover:bg-zinc-100 shadow-[0_0_15px_rgba(255,255,255,0.3)] transition-all"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 text-xs font-black text-black hover:bg-zinc-100 transition-all shadow-[0_0_15px_rgba(255,255,255,0.4)] shrink-0"
                   >
-                    <Play className="h-3.5 w-3.5 fill-black" />
-                    <span>Track</span>
+                    <Play className="h-4 w-4" />
+                    <span>Launch Focus</span>
                   </button>
-                </form>
+                </div>
+              </form>
+            </div>
+          </ScrollReveal>
+        )}
+
+        {/* Today's Activity Logs List */}
+        <ScrollReveal mode="inView" delay={0.24} duration={1.8} yOffset={70} blurAmount={10}>
+          <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl border border-white/20 shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-bold">
+                Logged Sessions for {formattedDate} ({logs.filter((l) => l.activityDate === selectedDate).length})
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {logs.filter((l) => l.activityDate === selectedDate).length === 0 ? (
+                <p className="text-xs text-zinc-500 py-4 text-center">No time recorded yet today. Use the stopwatch or Log button to add an entry.</p>
+              ) : (
+                logs
+                  .filter((l) => l.activityDate === selectedDate)
+                  .map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between p-3.5 rounded-xl border border-white/10 bg-white/[0.02] hover:border-white/20 transition-all text-xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white">{log.taskTitle}</span>
+                          <CategoryBadge category={log.category} size="sm" />
+                          {log.isUnplanned && (
+                            <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-mono text-zinc-300">
+                              Spontaneous
+                            </span>
+                          )}
+                        </div>
+                        {(log.reflectionNotes || log.interruptionNotes) && (
+                          <p className="text-zinc-400 text-[11px]">{log.reflectionNotes || log.interruptionNotes}</p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-sm font-black text-white">
+                          {formatDuration(log.actualDurationMinutes)}
+                        </span>
+                        <button
+                          onClick={() => deleteLog(log.id)}
+                          className="p-1.5 rounded-lg text-zinc-500 hover:text-white transition-colors"
+                          title="Delete log"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
               )}
             </div>
           </div>
+        </ScrollReveal>
+      </section>
 
-          {/* Historical Logs Table */}
-          <div className="crystal-panel rounded-2xl p-5 backdrop-blur-2xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+      {/* Postpone Task Modal */}
+      <AnimatePresence>
+        {postponingTaskId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="crystal-panel relative max-w-md w-full rounded-3xl p-6 sm:p-7 backdrop-blur-3xl border border-white/25 shadow-2xl space-y-5"
+            >
+              <h3 className="text-xl font-bold text-white">Postpone Commitment</h3>
+              <p className="text-xs text-zinc-300">
+                Rescheduling protects your capacity. Choose the target date to move this task to:
+              </p>
+
               <div>
-                <h2 className="text-sm font-bold text-white tracking-tight">Recorded Execution History</h2>
-                <p className="text-xs text-zinc-400">
-                  {filteredLogs.length} verified logs with actual time expending
-                </p>
-              </div>
-
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
                 <input
-                  type="text"
-                  value={logSearchQuery}
-                  onChange={(e) => setLogSearchQuery(e.target.value)}
-                  placeholder="Search logs & reflections..."
-                  className="rounded-xl border border-white/10 bg-white/[0.04] pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:border-white focus:outline-none"
+                  type="date"
+                  value={postponeTargetDate}
+                  onChange={(e) => setPostponeTargetDate(e.target.value)}
+                  className="w-full rounded-xl border border-white/20 bg-black/60 px-4 py-2.5 text-xs text-white focus:border-white focus:outline-none font-mono"
                 />
               </div>
-            </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-white/10 text-[11px] font-mono uppercase text-zinc-400">
-                    <th className="pb-3">Date</th>
-                    <th className="pb-3">Activity</th>
-                    <th className="pb-3">Category</th>
-                    <th className="pb-3">Actual Time</th>
-                    <th className="pb-3">Variance</th>
-                    <th className="pb-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {filteredLogs.map((log) => {
-                    const linkedTask = log.taskId ? tasks.find((t) => t.id === log.taskId) : null;
-                    const variance = linkedTask
-                      ? log.actualDurationMinutes - linkedTask.estimatedDurationMinutes
-                      : null;
-                    const isEditing = editingLogId === log.id;
-
-                    return (
-                      <tr key={log.id} className="hover:bg-white/[0.03] transition-colors">
-                        <td className="py-3 font-mono text-zinc-400 whitespace-nowrap">
-                          {log.activityDate}
-                        </td>
-                        <td className="py-3 pr-3">
-                          <div className="font-semibold text-white">{log.taskTitle}</div>
-                          {log.reflectionNotes && (
-                            <div className="mt-0.5 text-[11px] text-zinc-400 italic">
-                              "{log.reflectionNotes}"
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 whitespace-nowrap">
-                          <CategoryBadge category={log.category} size="sm" />
-                        </td>
-                        <td className="py-3 font-mono font-bold text-white whitespace-nowrap">
-                          {isEditing ? (
-                            <input
-                              type="number"
-                              min="1"
-                              value={editDuration}
-                              onChange={(e) => setEditDuration(Number(e.target.value))}
-                              className="w-16 rounded border border-white/20 bg-black px-2 py-1 text-xs font-mono text-white"
-                            />
-                          ) : (
-                            formatDuration(log.actualDurationMinutes)
-                          )}
-                        </td>
-                        <td className="py-3 whitespace-nowrap font-mono text-[11px]">
-                          {variance !== null ? (
-                            <span className="font-bold text-white">
-                              {variance > 0 ? `+${variance}m overrun` : variance < 0 ? `${variance}m buffer` : 'Exact'}
-                            </span>
-                          ) : (
-                            <span className="text-zinc-500">Standalone</span>
-                          )}
-                        </td>
-                        <td className="py-3 text-right whitespace-nowrap">
-                          {isEditing ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                onClick={() => {
-                                  updateLog({
-                                    ...log,
-                                    actualDurationMinutes: editDuration,
-                                    reflectionNotes: editNotes,
-                                  });
-                                  setEditingLogId(null);
-                                }}
-                                className="rounded bg-white px-2.5 py-1 text-[11px] font-black text-black shadow-sm"
-                              >
-                                Save
-                              </button>
-                              <button
-                                onClick={() => setEditingLogId(null)}
-                                className="rounded bg-white/10 px-2 py-1 text-[11px] text-zinc-400 hover:text-white"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => {
-                                  setEditingLogId(log.id);
-                                  setEditDuration(log.actualDurationMinutes);
-                                  setEditNotes(log.reflectionNotes || '');
-                                }}
-                                className="p-1.5 text-zinc-400 hover:text-white"
-                              >
-                                <Edit2 className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={() => deleteLog(log.id)}
-                                className="p-1.5 text-zinc-400 hover:text-white"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPostponingTaskId(null)}
+                  className="rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-zinc-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPostpone}
+                  className="rounded-xl bg-white px-5 py-2 text-xs font-black text-black hover:bg-zinc-100 shadow-sm"
+                >
+                  Confirm Postpone
+                </button>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
-
-      {/* Postpone Modal */}
-      {postponingTaskId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="crystal-panel w-full max-w-md rounded-2xl p-6 shadow-2xl backdrop-blur-2xl">
-            <h3 className="text-base font-bold text-white">Postpone Task</h3>
-            <p className="mt-1 text-xs text-zinc-400">
-              Moving this task retains its original schedule history to track deferral patterns.
-            </p>
-
-            <div className="mt-4">
-              <label className="mb-1.5 block text-xs font-semibold text-zinc-300">
-                Reschedule To
-              </label>
-              <input
-                type="date"
-                required
-                value={postponeTargetDate}
-                onChange={(e) => setPostponeTargetDate(e.target.value)}
-                className="w-full rounded-xl border border-white/15 bg-black/70 px-3.5 py-2.5 text-xs font-mono text-white focus:border-white focus:outline-none"
-              />
-            </div>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => setPostponingTaskId(null)}
-                className="rounded-xl px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-white/5 hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmPostpone}
-                className="rounded-xl bg-white px-4 py-2 text-xs font-black text-black hover:bg-zinc-100 shadow-[0_0_15px_rgba(255,255,255,0.3)]"
-              >
-                Confirm Postpone
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 };

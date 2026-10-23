@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Search,
   Settings,
+  Sparkles,
   Sun,
   X,
   Zap,
@@ -45,6 +46,8 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
     resetDemoData,
     preferences,
     updatePreferences,
+    startTimer,
+    toggleSound,
   } = useApp();
 
   const [query, setQuery] = useState('');
@@ -57,7 +60,7 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
       title: 'Go to Overview',
       subtitle: 'Execution command center & Reality Score',
       icon: Compass,
-      shortcut: 'G O',
+      shortcut: '1',
       action: () => setActiveTab('overview'),
       category: 'Navigation',
     },
@@ -66,7 +69,7 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
       title: 'Go to Planner & Activity Tracker',
       subtitle: 'Daily schedule, capacity budget & live stopwatch',
       icon: CalendarDays,
-      shortcut: 'G P',
+      shortcut: '2',
       action: () => setActiveTab('planner'),
       category: 'Navigation',
     },
@@ -75,7 +78,7 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
       title: 'Go to Reality Analytics & Pattern Lab',
       subtitle: 'Deep-dive charts & behavioral experiments',
       icon: BarChart3,
-      shortcut: 'G A',
+      shortcut: '3',
       action: () => setActiveTab('analytics'),
       category: 'Navigation',
     },
@@ -84,7 +87,7 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
       title: 'Go to Reports & Preferences',
       subtitle: 'Weekly audit dispatch, CSV export & configuration',
       icon: FileText,
-      shortcut: 'G R',
+      shortcut: '4',
       action: () => setActiveTab('reports'),
       category: 'Navigation',
     },
@@ -95,7 +98,7 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
       title: 'Plan New Task',
       subtitle: 'Add a commitment with duration estimate',
       icon: Plus,
-      shortcut: 'Alt + P',
+      shortcut: 'P',
       action: () => {
         setEditingTask(null);
         setIsTaskModalOpen(true);
@@ -107,7 +110,7 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
       title: 'Log Actual Activity',
       subtitle: 'Record real time expended to calibrate gap',
       icon: Zap,
-      shortcut: 'Alt + L',
+      shortcut: 'L',
       action: () => {
         setPreselectedLogTask(null);
         setIsLogModalOpen(true);
@@ -115,13 +118,30 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
       category: 'Quick Actions',
     },
     {
+      id: 'act-pomodoro',
+      title: 'Start 25m Pomodoro Focus Block',
+      subtitle: 'Dedicated deep work sprint with soothing chime',
+      icon: Clock,
+      action: () => {
+        startTimer('Pomodoro Deep Work', 'Deep Work', null, true, 'pomodoro', 25);
+      },
+      category: 'Quick Actions',
+    },
+    {
+      id: 'act-toggle-sound',
+      title: preferences.soundEnabled === false ? 'Unmute Focus Bells & Chimes' : 'Mute Focus Sound FX',
+      subtitle: preferences.soundEnabled === false ? 'Enable crystal audio feedback' : 'Run silently without audio',
+      icon: preferences.soundEnabled === false ? Moon : Sparkles,
+      action: () => toggleSound(),
+      category: 'Preferences',
+    },
+    {
       id: 'act-switch-workspace',
       title: activeWorkspace === 'demo' ? 'Switch to Personal Workspace' : 'Switch to 14d Demo Sandbox',
       subtitle: `Current active: ${activeWorkspace}`,
       icon: Laptop,
-      shortcut: 'Alt + W',
       action: () => setWorkspace(activeWorkspace === 'demo' ? 'personal' : 'demo'),
-      category: 'Quick Actions',
+      category: 'Preferences',
     },
     {
       id: 'act-reset-demo',
@@ -129,7 +149,7 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
       subtitle: 'Restore standard 14 days of simulated data',
       icon: RotateCcw,
       action: () => resetDemoData(),
-      category: 'Quick Actions',
+      category: 'Preferences',
     },
   ];
 

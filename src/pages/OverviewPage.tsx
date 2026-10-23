@@ -1,62 +1,54 @@
-import React from 'react';
-import { motion, Variants } from 'motion/react';
+import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import {
-  ArrowDownRight,
-  ArrowUpRight,
-  Award,
+  ArrowDown,
+  Check,
   CheckCircle,
+  CheckCircle2,
+  CheckSquare,
   Clock,
   Compass,
-  ExternalLink,
+  Crosshair,
   Flame,
-  HelpCircle,
-  Info,
-  Layers,
-  Lightbulb,
+  ListTodo,
   Play,
   Plus,
   Sparkles,
-  Square,
   Target,
   ThumbsDown,
   ThumbsUp,
-  TrendingDown,
   TrendingUp,
+  Wand2,
   Zap,
 } from 'lucide-react';
-import { MiniSparkline } from '../components/charts/MiniSparkline';
+import { DayFlowTimeline } from '../components/charts/DayFlowTimeline';
 import { PlannedVsActualChart } from '../components/charts/PlannedVsActualChart';
 import { RealityScoreRing } from '../components/charts/RealityScoreRing';
-import { CategoryBadge, PriorityBadge, StatusBadge } from '../components/ui/CategoryBadge';
+import { CategoryBadge, PriorityBadge } from '../components/ui/CategoryBadge';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
-import { SpotlightCard } from '../components/ui/SpotlightCard';
+import { ScrollReveal } from '../components/ui/ScrollReveal';
+import { ScrollStageIndicator, Stage } from '../components/ui/ScrollStageIndicator';
 import { useApp } from '../context/AppContext';
 import {
   buildDailyMetrics,
   calculateCompletionRate,
+  calculateHonestEstimate,
   calculatePlanningAccuracy,
+  calculateWorkdayForecast,
   formatDuration,
+  parseNaturalTaskInput,
 } from '../lib/analytics/gapEngine';
+import { CategoryType, PriorityType, Task } from '../types';
 
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.08,
-      delayChildren: 0.05,
-    },
-  },
-};
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { type: 'spring' as const, damping: 25, stiffness: 300 },
-  },
-};
+const OVERVIEW_STAGES: Stage[] = [
+  { id: 'chapter-hero', number: '01', label: 'Reality Score' },
+  { id: 'chapter-targets', number: '02', label: 'Goal Reality Check' },
+  { id: 'chapter-balance', number: '03', label: 'Activity Balance' },
+  { id: 'chapter-tasks', number: '04', label: 'To-Do Action Hub' },
+  { id: 'chapter-timeline', number: '05', label: 'Timeline Flow' },
+  { id: 'chapter-wave', number: '06', label: 'Reality Wave' },
+  { id: 'chapter-insights', number: '07', label: 'Habit Insights' },
+];
 
 export const OverviewPage: React.FC = () => {
   const {
@@ -75,7 +67,17 @@ export const OverviewPage: React.FC = () => {
     insights,
     voteInsight,
     preferences,
+    addTask,
   } = useApp();
+
+  // Quick task add inline state
+  const [quickTitle, setQuickTitle] = useState('');
+  const [quickDuration, setQuickDuration] = useState(45);
+  const [quickCategory, setQuickCategory] = useState<CategoryType>('Deep Work');
+  const [quickPriority, setQuickPriority] = useState<PriorityType>('medium');
+
+  // Filter for Goal & Target Reality Check module
+  const [targetFilter, setTargetFilter] = useState<'all' | 'priority' | 'pending' | 'completed'>('all');
 
   const dates14: string[] = [];
   const base = new Date(selectedDate + 'T00:00:00Z');
@@ -94,467 +96,1028 @@ export const OverviewPage: React.FC = () => {
   const todayCompletionRate = calculateCompletionRate(todayTasks);
   const todayAccuracy = calculatePlanningAccuracy(todayPlannedMins, todayActualMins);
 
-  const last7Days = dailyMetrics.slice(-7);
-  const plannedTrend = last7Days.map((d) => d.plannedMinutes);
-  const actualTrend = last7Days.map((d) => d.actualMinutes);
-  const completionTrend = last7Days.map((d) => d.completionRate);
-  const accuracyTrend = last7Days.map((d) => d.planningAccuracy);
+  const completedCount = todayTasks.filter((t) => t.status === 'completed').length;
+  const pendingTargetsCount = Math.max(0, todayTasks.length - completedCount);
+  const timeDifferenceMins = todayActualMins - todayPlannedMins;
+
+  // Key priority goals & target statistics
+  const priorityTargets = todayTasks.filter(
+    (t) => t.priority === 'critical' || t.priority === 'high'
+  );
+  const completedPriorityTargets = priorityTargets.filter(
+    (t) => t.status === 'completed'
+  ).length;
+
+  // Reality forecast calculation
+  const workdayForecast = calculateWorkdayForecast(todayTasks, todayLogs, 1.18);
 
   const activeInsight = insights.find((i) => !i.dismissed) || {
     id: 'default-insight',
-    title: 'Deep Work Estimation Bias',
-    observation: 'You underestimate deep work tasks by approximately 32% across complex architectural blocks.',
-    evidence: 'Measured across 8 engineering tasks over the past 14 days.',
-    suggestedExperiment: 'Add a 20-minute buffer to deep work blocks before locking daily schedule.',
-    metricValue: '+32%',
+    title: 'Deep Work Follow-Through',
+    observation: 'You complete 85% of your scheduled deep work targets when scheduled before 2:00 PM.',
+    evidence: 'Based on your last 14 days of tracked activity to-dos.',
+    suggestedExperiment: 'Place your #1 priority goal in the morning block for maximum target follow-through.',
+    metricValue: '85% Target Rate',
     confidence: 'high' as const,
     observationPeriod: 'Last 14 days',
     dismissed: false,
     workspace: 'demo' as const,
-    type: 'estimation_bias' as const,
+    type: 'completion_velocity' as const,
     createdAt: new Date().toISOString(),
   };
 
   const sortedTodayTasks = [...todayTasks].sort((a, b) => {
+    if (a.status === 'completed' && b.status !== 'completed') return 1;
+    if (a.status !== 'completed' && b.status === 'completed') return -1;
     const timeA = a.scheduledStartTime || '99:99';
     const timeB = b.scheduledStartTime || '99:99';
     return timeA.localeCompare(timeB);
   });
 
-  return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-6 pb-8"
-    >
-      {/* Top Greeting */}
-      <motion.div
-        variants={itemVariants}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-      >
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
-              Execution Command Center
-            </h1>
-            <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/[0.06] backdrop-blur-md px-2.5 py-0.5 text-[11px] font-mono text-zinc-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_6px_#fff]" />
-              Real-time sync
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-zinc-400">
-            Intention calibration for{' '}
-            <span className="text-white font-medium">
-              {new Date(selectedDate + 'T00:00:00Z').toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric',
-              })}
-            </span>
-          </p>
-        </div>
-      </motion.div>
+  // Filtered tasks for the Goal Reality Check section
+  const targetCheckTasks = sortedTodayTasks.filter((task) => {
+    if (targetFilter === 'priority') {
+      return task.priority === 'critical' || task.priority === 'high';
+    }
+    if (targetFilter === 'pending') {
+      return task.status !== 'completed';
+    }
+    if (targetFilter === 'completed') {
+      return task.status === 'completed';
+    }
+    return true;
+  });
 
-      {/* Hero Section: The Reality Score & Gap Calibration */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Reality Score Card (5 cols) */}
-        <motion.div variants={itemVariants} className="lg:col-span-5">
-          <SpotlightCard className="p-6 h-full flex flex-col justify-between" enableTilt={true}>
-            <div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-2 w-2 rounded-full bg-white shadow-[0_0_8px_#fff]" />
+  // Natural language auto-parser on input
+  const handleQuickTitleChange = (val: string) => {
+    setQuickTitle(val);
+    if (val.length > 5) {
+      const parsed = parseNaturalTaskInput(val);
+      if (parsed.durationMinutes && parsed.durationMinutes !== quickDuration) {
+        setQuickDuration(parsed.durationMinutes);
+      }
+      if (parsed.category && parsed.category !== quickCategory) {
+        setQuickCategory(parsed.category);
+      }
+      if (parsed.priority && parsed.priority !== quickPriority) {
+        setQuickPriority(parsed.priority);
+      }
+    }
+  };
+
+  const handleQuickSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickTitle.trim()) return;
+
+    const parsed = parseNaturalTaskInput(quickTitle.trim());
+
+    addTask({
+      title: parsed.title || quickTitle.trim(),
+      category: quickCategory || parsed.category,
+      plannedDate: selectedDate,
+      scheduledStartTime: parsed.startTime,
+      estimatedDurationMinutes: Number(quickDuration) || parsed.durationMinutes || 45,
+      priority: parsed.priority || quickPriority || 'medium',
+      status: 'planned',
+    });
+    setQuickTitle('');
+  };
+
+  const applyTemplate = (
+    templateTitle: string,
+    templateCategory: CategoryType,
+    templateMins: number,
+    priority: PriorityType = 'medium'
+  ) => {
+    addTask({
+      title: templateTitle,
+      category: templateCategory,
+      plannedDate: selectedDate,
+      estimatedDurationMinutes: templateMins,
+      priority,
+      status: 'planned',
+    });
+  };
+
+  const formattedDate = new Date(selectedDate + 'T00:00:00Z').toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  return (
+    <div className="relative space-y-44 sm:space-y-56 pb-48">
+      {/* Floating chapter navigation rail */}
+      <ScrollStageIndicator stages={OVERVIEW_STAGES} />
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 1: CINEMATIC HERO (Target Reality Alignment)          */}
+      {/* ------------------------------------------------------------- */}
+      <section id="chapter-hero" className="relative pt-6 sm:pt-16 text-center min-h-[75vh] flex flex-col justify-center">
+        <ScrollReveal mode="inView" duration={1.8} yOffset={40} blurAmount={12}>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.04] px-4 py-1.5 text-xs text-zinc-300 backdrop-blur-2xl mb-6 shadow-sm">
+            <span className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_8px_#fff] animate-pulse" />
+            <span className="font-medium">{formattedDate}</span>
+            <span className="text-zinc-500">•</span>
+            <span className="font-mono text-zinc-400">12-Day Streak</span>
+          </div>
+
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white max-w-4xl mx-auto leading-[1.08]">
+            Are you hitting the goals and activity targets you planned?
+          </h1>
+
+          <p className="mt-6 text-base sm:text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
+            RealityCheck holds an honest mirror to your daily to-dos, activities, and targets — comparing what you committed to do against what was actually completed.
+          </p>
+        </ScrollReveal>
+
+        {/* Central Reality Alignment Hero Card (White Ring) */}
+        <ScrollReveal mode="inView" delay={0.25} duration={1.9} yOffset={60} blurAmount={14}>
+          <div className="crystal-panel relative max-w-2xl mx-auto mt-12 rounded-3xl p-7 sm:p-9 backdrop-blur-3xl text-left border border-white/20 shadow-[0_35px_120px_rgba(0,0,0,0.95)]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.09] via-transparent to-transparent" />
+
+            <div className="relative z-10 flex flex-col sm:flex-row items-center gap-7 sm:gap-9">
+              {/* Animated White Ring */}
+              <div className="shrink-0">
+                <RealityScoreRing score={realityScore.score} size={155} strokeWidth={10} />
+              </div>
+
+              {/* Score Narrative */}
+              <div className="flex-1 text-center sm:text-left space-y-2.5">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                   <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-bold">
-                    The Reality Score
+                    Target Reality Score
+                  </span>
+                  <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-bold text-white border border-white/20">
+                    {realityScore.qualification}
                   </span>
                 </div>
+
+                <div className="text-2xl font-black text-white">
+                  {todayTasks.length === 0
+                    ? 'No to-do targets scheduled for today yet.'
+                    : completedCount === todayTasks.length
+                    ? '100% Reality Check! All daily targets completed.'
+                    : completedCount > 0
+                    ? `${completedCount} of ${todayTasks.length} activity targets completed.`
+                    : 'Your daily targets are waiting for you to execute.'}
+                </div>
+
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  {todayTasks.length === 0
+                    ? "You haven't committed to any to-do targets for today yet. Add your first goal below to start your reality check!"
+                    : `You have completed ${completedCount} of ${todayTasks.length} target to-dos (${todayCompletionRate}% follow-through) with ${
+                        priorityTargets.length > 0
+                          ? `${completedPriorityTargets} of ${priorityTargets.length} key goals nailed`
+                          : 'steady progress'
+                      }. Total active effort: ${formatDuration(todayActualMins)} logged.`}
+                </p>
+
+                <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                  <button
+                    onClick={() => setIsScoreModalOpen(true)}
+                    className="text-xs text-zinc-400 hover:text-white underline underline-offset-4 transition-colors"
+                  >
+                    How is this reality score calculated?
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ScrollReveal>
+
+        {/* Scroll invitation indicator */}
+        <ScrollReveal mode="inView" delay={0.5} duration={1.5} yOffset={25}>
+          <div className="mt-16 flex flex-col items-center justify-center text-xs text-zinc-500 gap-2">
+            <span className="tracking-widest uppercase font-mono text-[10px] text-zinc-400">
+              Scroll down to run your target reality check
+            </span>
+            <motion.div
+              animate={{ y: [0, 8, 0] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <ArrowDown className="h-4 w-4 text-zinc-400" />
+            </motion.div>
+          </div>
+        </ScrollReveal>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 2: GOAL & TARGET REALITY CHECK (Interactive To-Do Hub)*/}
+      {/* ------------------------------------------------------------- */}
+      <section id="chapter-targets" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2">
+                <span className="h-1.5 w-6 rounded-full bg-white/40" />
+                <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                  Chapter 01
+                </span>
+              </div>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white flex items-center gap-3">
+                <span>Goal & Target Reality Check</span>
+              </h2>
+              <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+                Check off your activity targets as you accomplish them in reality. Each completed to-do directly fuels your Reality Score and closes your target gap.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setEditingTask(null);
+                setIsTaskModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-black text-black hover:bg-zinc-100 shadow-[0_0_20px_rgba(255,255,255,0.4)] transition-all self-start sm:self-auto"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Goal / Target</span>
+            </button>
+          </div>
+        </ScrollReveal>
+
+        {/* Reality Check Status Banner with Live Progress Bar */}
+        <ScrollReveal mode="inView" delay={0.1} duration={1.7} yOffset={60}>
+          <div className="crystal-panel relative overflow-hidden rounded-3xl p-6 sm:p-7 backdrop-blur-3xl border border-white/20 shadow-2xl">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-transparent" />
+
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-2 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-black font-bold text-xs">
+                    <Target className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="text-xs font-mono uppercase tracking-wider text-zinc-300 font-bold">
+                    Daily Reality Check Status
+                  </span>
+                </div>
+
+                <div className="text-lg sm:text-xl font-bold text-white">
+                  {todayTasks.length === 0 ? (
+                    'No daily targets committed yet.'
+                  ) : completedCount === todayTasks.length ? (
+                    '🎉 Target Reality Check: Mastered! All daily goal targets achieved.'
+                  ) : todayCompletionRate >= 50 ? (
+                    `⚡ Target Reality Check: Strong pace! ${completedCount} of ${todayTasks.length} activity targets completed.`
+                  ) : (
+                    `⏳ Target Reality Check: ${pendingTargetsCount} targets remaining to achieve your daily commitment.`
+                  )}
+                </div>
+
+                {/* Progress track */}
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-mono text-zinc-400">
+                    <span>
+                      {completedCount} of {todayTasks.length} to-dos completed
+                    </span>
+                    <span className="font-bold text-white">{todayCompletionRate}% Reality Rate</span>
+                  </div>
+                  <div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden border border-white/10">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${todayCompletionRate}%` }}
+                      transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+                      className="h-full rounded-full bg-white shadow-[0_0_12px_#fff]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Target Quick Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:border-l md:border-white/10 md:pl-6 shrink-0">
+                <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+                  <span className="text-[10px] font-mono uppercase text-zinc-400 block">Key Goals</span>
+                  <span className="font-mono text-lg font-black text-white mt-0.5 block">
+                    {completedPriorityTargets}/{priorityTargets.length}
+                  </span>
+                  <span className="text-[10px] text-zinc-500">Priority targets</span>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+                  <span className="text-[10px] font-mono uppercase text-zinc-400 block">Pending</span>
+                  <span className="font-mono text-lg font-black text-white mt-0.5 block">
+                    {pendingTargetsCount}
+                  </span>
+                  <span className="text-[10px] text-zinc-500">Remaining to-dos</span>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/40 p-3 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] font-mono uppercase text-zinc-400 block">Logged Effort</span>
+                  <span className="font-mono text-lg font-black text-white mt-0.5 block">
+                    {formatDuration(todayActualMins)}
+                  </span>
+                  <span className="text-[10px] text-zinc-500">Active work</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter Pills for Targets */}
+            <div className="relative z-10 mt-6 pt-5 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                <span className="text-zinc-500 font-mono text-[11px] mr-1">Filter Targets:</span>
                 <button
-                  onClick={() => setIsScoreModalOpen(true)}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-white hover:underline transition-all"
+                  onClick={() => setTargetFilter('all')}
+                  className={`rounded-full px-3 py-1 font-semibold transition-all ${
+                    targetFilter === 'all'
+                      ? 'bg-white text-black font-bold shadow-sm'
+                      : 'border border-white/15 bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/10'
+                  }`}
                 >
-                  <span>Formula breakdown</span>
-                  <ExternalLink className="h-3 w-3" />
+                  All Activities ({todayTasks.length})
+                </button>
+                <button
+                  onClick={() => setTargetFilter('priority')}
+                  className={`rounded-full px-3 py-1 font-semibold transition-all ${
+                    targetFilter === 'priority'
+                      ? 'bg-white text-black font-bold shadow-sm'
+                      : 'border border-white/15 bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  🎯 Priority Goals ({priorityTargets.length})
+                </button>
+                <button
+                  onClick={() => setTargetFilter('pending')}
+                  className={`rounded-full px-3 py-1 font-semibold transition-all ${
+                    targetFilter === 'pending'
+                      ? 'bg-white text-black font-bold shadow-sm'
+                      : 'border border-white/15 bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  ⏳ Pending ({pendingTargetsCount})
+                </button>
+                <button
+                  onClick={() => setTargetFilter('completed')}
+                  className={`rounded-full px-3 py-1 font-semibold transition-all ${
+                    targetFilter === 'completed'
+                      ? 'bg-white text-black font-bold shadow-sm'
+                      : 'border border-white/15 bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  ✅ Done ({completedCount})
                 </button>
               </div>
 
-              {/* Circular Animated SVG Ring */}
-              <div className="my-5 flex flex-col sm:flex-row items-center gap-6">
-                <RealityScoreRing score={realityScore.score} />
-
-                <div className="flex-1 space-y-2 text-center sm:text-left">
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-0.5 text-xs font-bold text-white shadow-sm">
-                    <span>{realityScore.qualification}</span>
-                  </div>
-
-                  {realityScore.delta !== null && (
-                    <div className="flex items-center justify-center sm:justify-start gap-1 text-xs font-mono">
-                      <span className="text-white font-bold">
-                        {realityScore.delta >= 0 ? `+${realityScore.delta}` : realityScore.delta} pts
-                      </span>
-                      <span className="text-zinc-500 text-[11px]">vs prior 7 days</span>
-                    </div>
-                  )}
-
-                  <p className="text-xs leading-relaxed text-zinc-300 line-clamp-3">
-                    {realityScore.description}
-                  </p>
-                </div>
-              </div>
+              {pendingTargetsCount > 0 && (
+                <span className="text-zinc-400 font-mono text-[11px]">
+                  {pendingTargetsCount} {pendingTargetsCount === 1 ? 'target' : 'targets'} left for today
+                </span>
+              )}
             </div>
+          </div>
+        </ScrollReveal>
 
-            {/* Breakdown Mini Bar */}
-            <div className="grid grid-cols-3 gap-2 border-t border-white/[0.08] pt-3.5 text-center">
-              <div>
-                <div className="text-[10px] font-mono uppercase text-zinc-400">Accuracy (40%)</div>
-                <div className="font-mono text-xs font-bold text-white mt-0.5">
-                  <AnimatedNumber value={realityScore.planningAccuracyComponent} />/40
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] font-mono uppercase text-zinc-400">Completion (35%)</div>
-                <div className="font-mono text-xs font-bold text-white mt-0.5">
-                  <AnimatedNumber value={realityScore.completionRateComponent} />/35
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] font-mono uppercase text-zinc-400">Estimation (25%)</div>
-                <div className="font-mono text-xs font-bold text-white mt-0.5">
-                  <AnimatedNumber value={realityScore.estimationCaliberComponent} />/25
-                </div>
-              </div>
-            </div>
-          </SpotlightCard>
-        </motion.div>
-
-        {/* 4 Key Metric Cards (7 cols) with Mini Sparklines & Animated Count-up */}
-        <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Card 1: Planned Time */}
-          <motion.div variants={itemVariants}>
-            <SpotlightCard className="p-5 flex flex-col justify-between h-full">
-              <div>
-                <div className="flex items-center justify-between text-xs text-zinc-400">
-                  <span className="font-medium">Planned Time</span>
-                  <Clock className="h-4 w-4 text-zinc-400" />
-                </div>
-                <div className="mt-2 flex items-baseline justify-between">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-mono text-3xl font-black text-white tracking-tight">
-                      <AnimatedNumber value={todayPlannedMins} format="hours-mins" />
-                    </span>
-                    <span className="text-[11px] text-zinc-400">
-                      / {(preferences.dailyAvailableMinutes / 60).toFixed(0)}h budget
-                    </span>
-                  </div>
-                  <MiniSparkline data={plannedTrend.length > 1 ? plannedTrend : [60, 120, 180, 240, 280]} color="#FFFFFF" />
-                </div>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-white/[0.08] flex items-center justify-between text-[11px] text-zinc-400">
-                <span>Committed Bandwidth</span>
-                <span className="font-mono font-bold text-white">
-                  {Math.round((todayPlannedMins / preferences.dailyAvailableMinutes) * 100)}%
-                </span>
-              </div>
-            </SpotlightCard>
-          </motion.div>
-
-          {/* Card 2: Actual Time */}
-          <motion.div variants={itemVariants}>
-            <SpotlightCard className="p-5 flex flex-col justify-between h-full">
-              <div>
-                <div className="flex items-center justify-between text-xs text-zinc-400">
-                  <span className="font-medium">Actual Time Logged</span>
-                  <Zap className="h-4 w-4 text-white" />
-                </div>
-                <div className="mt-2 flex items-baseline justify-between">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-mono text-3xl font-black text-white tracking-tight">
-                      <AnimatedNumber value={todayActualMins} format="hours-mins" />
-                    </span>
-                    <span className="text-[11px] font-mono text-zinc-400">
-                      {todayActualMins - todayPlannedMins >= 0
-                        ? `+${formatDuration(todayActualMins - todayPlannedMins)}`
-                        : formatDuration(todayActualMins - todayPlannedMins)}
-                    </span>
-                  </div>
-                  <MiniSparkline data={actualTrend.length > 1 ? actualTrend : [45, 90, 150, 200, 260]} color="#FFFFFF" />
-                </div>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-white/[0.08] flex items-center justify-between text-[11px] text-zinc-400">
-                <span>Logged Sessions</span>
-                <span className="font-mono font-bold text-white">
-                  {todayLogs.length} verified logs
-                </span>
-              </div>
-            </SpotlightCard>
-          </motion.div>
-
-          {/* Card 3: Completion Rate */}
-          <motion.div variants={itemVariants}>
-            <SpotlightCard className="p-5 flex flex-col justify-between h-full">
-              <div>
-                <div className="flex items-center justify-between text-xs text-zinc-400">
-                  <span className="font-medium">Task Completion Rate</span>
-                  <CheckCircle className="h-4 w-4 text-white" />
-                </div>
-                <div className="mt-2 flex items-baseline justify-between">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-mono text-3xl font-black text-white tracking-tight">
-                      <AnimatedNumber value={todayCompletionRate} format="percent" />
-                    </span>
-                    <span className="text-[11px] text-zinc-400">
-                      ({todayTasks.filter((t) => t.status === 'completed').length}/{todayTasks.length} tasks)
-                    </span>
-                  </div>
-                  <MiniSparkline data={completionTrend.length > 1 ? completionTrend : [50, 60, 75, 80, 85]} color="#FFFFFF" />
-                </div>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-white/[0.08] flex items-center justify-between text-[11px] text-zinc-400">
-                <span>Execution Follow-through</span>
-                <span className="font-mono font-bold text-white">
-                  {todayCompletionRate >= 75 ? 'Optimal' : 'Active Drift'}
-                </span>
-              </div>
-            </SpotlightCard>
-          </motion.div>
-
-          {/* Card 4: Planning Accuracy */}
-          <motion.div variants={itemVariants}>
-            <SpotlightCard className="p-5 flex flex-col justify-between h-full">
-              <div>
-                <div className="flex items-center justify-between text-xs text-zinc-400">
-                  <span className="font-medium">Planning Accuracy</span>
-                  <Target className="h-4 w-4 text-white" />
-                </div>
-                <div className="mt-2 flex items-baseline justify-between">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-mono text-3xl font-black text-white tracking-tight">
-                      <AnimatedNumber value={todayAccuracy} format="percent" />
-                    </span>
-                    <span className="text-[11px] font-mono text-zinc-400">
-                      {todayAccuracy >= 80 ? 'Calibrated' : 'Variance'}
-                    </span>
-                  </div>
-                  <MiniSparkline data={accuracyTrend.length > 1 ? accuracyTrend : [65, 70, 72, 85, 88]} color="#FFFFFF" />
-                </div>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-white/[0.08] flex items-center justify-between text-[11px] text-zinc-400">
-                <span>Variance Threshold</span>
-                <span className="font-mono font-bold text-white">
-                  {todayAccuracy >= 80 ? '±10% Bound' : '>15% Overrun'}
-                </span>
-              </div>
-            </SpotlightCard>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Planned vs Actual Dynamic Chart */}
-      <motion.div variants={itemVariants}>
-        <PlannedVsActualChart data={dailyMetrics} />
-      </motion.div>
-
-      {/* Two Column Section: Today's Timeline + Insight of the Day */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Today's Execution Timeline (8 cols) */}
-        <motion.div variants={itemVariants} className="lg:col-span-8">
-          <div className="crystal-panel rounded-2xl p-5 backdrop-blur-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-white tracking-tight">
-                  Today's Execution Timeline
-                </h3>
-                <p className="text-xs text-zinc-400">
-                  {sortedTodayTasks.length} commitments planned for {selectedDate}
+        {/* Target Cards Interactive Checklist */}
+        <div className="space-y-3.5">
+          {targetCheckTasks.length === 0 ? (
+            <ScrollReveal mode="inView" duration={1.6} yOffset={30}>
+              <div className="crystal-panel flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 p-12 text-center backdrop-blur-2xl">
+                <Target className="h-8 w-8 text-zinc-500 mb-2" />
+                <p className="text-sm font-bold text-white">
+                  {targetFilter === 'completed'
+                    ? 'No targets completed yet today'
+                    : targetFilter === 'pending'
+                    ? 'All targets completed! Outstanding execution!'
+                    : 'No targets matching this filter'}
+                </p>
+                <p className="mt-1 text-xs text-zinc-400 max-w-sm">
+                  {targetFilter === 'pending'
+                    ? 'You have cleared all scheduled commitments. Great job maintaining reality alignment!'
+                    : 'Add a new goal target above to build your daily plan.'}
                 </p>
               </div>
-            </div>
+            </ScrollReveal>
+          ) : (
+            targetCheckTasks.map((task, index) => {
+              const isCompleted = task.status === 'completed';
+              const isTimerRunningOnThis = activeTimer?.taskId === task.id;
+              const honestCalc = calculateHonestEstimate(
+                task.estimatedDurationMinutes,
+                task.category,
+                tasks,
+                logs
+              );
+              const isKeyTarget = task.priority === 'critical' || task.priority === 'high';
 
-            {sortedTodayTasks.length === 0 ? (
-              <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/40 text-center p-6">
-                <p className="text-xs font-medium text-zinc-400">No scheduled tasks for this date.</p>
-                <button
-                  onClick={() => {
-                    setEditingTask(null);
-                    setIsTaskModalOpen(true);
-                  }}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-black hover:bg-zinc-200"
+              return (
+                <ScrollReveal
+                  key={task.id}
+                  mode="inView"
+                  delay={Math.min(index * 0.08, 0.35)}
+                  duration={1.6}
+                  yOffset={40}
+                  blurAmount={8}
                 >
-                  <Plus className="h-3 w-3" />
-                  Schedule First Task
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {sortedTodayTasks.map((task) => {
-                  const isTimerActiveForTask = activeTimer?.taskId === task.id;
+                  <div
+                    className={`crystal-panel group flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl p-4 sm:p-5 transition-all duration-300 border ${
+                      isCompleted
+                        ? 'border-white/10 bg-white/[0.02] opacity-75'
+                        : isKeyTarget
+                        ? 'border-white/30 bg-white/[0.06] shadow-[0_0_20px_rgba(255,255,255,0.03)]'
+                        : 'border-white/15 bg-white/[0.04] hover:border-white/30'
+                    }`}
+                  >
+                    {/* Left: Interactive Checkbox & Details */}
+                    <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                      <button
+                        onClick={() =>
+                          setTaskStatus(task.id, isCompleted ? 'planned' : 'completed')
+                        }
+                        className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border transition-all ${
+                          isCompleted
+                            ? 'border-white bg-white text-black shadow-[0_0_10px_rgba(255,255,255,0.8)]'
+                            : 'border-white/30 bg-black/60 hover:border-white text-transparent'
+                        }`}
+                        title={isCompleted ? 'Mark as not done' : 'Mark to-do target completed!'}
+                      >
+                        <Check className="h-4 w-4 stroke-[3]" />
+                      </button>
 
-                  return (
-                    <motion.div
-                      key={task.id}
-                      whileHover={{ scale: 1.005 }}
-                      transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-                      className="group flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-white/[0.1] bg-white/[0.03] p-3.5 hover:border-white/25 hover:bg-white/[0.06] transition-all"
-                    >
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className="mt-1 flex flex-col items-center">
-                          <button
-                            onClick={() =>
-                              setTaskStatus(
-                                task.id,
-                                task.status === 'completed' ? 'planned' : 'completed'
-                              )
-                            }
-                            className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${
-                              task.status === 'completed'
-                                ? 'border-white bg-white text-black'
-                                : 'border-zinc-700 bg-black hover:border-white'
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`text-sm font-bold truncate ${
+                              isCompleted ? 'line-through text-zinc-500' : 'text-white'
                             }`}
                           >
-                            {task.status === 'completed' && <CheckCircle className="h-3.5 w-3.5 stroke-[3]" />}
-                          </button>
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span
-                              className={`text-xs font-bold truncate ${
-                                task.status === 'completed' ? 'line-through text-zinc-500' : 'text-white'
-                              }`}
-                            >
-                              {task.title}
-                            </span>
-                            <PriorityBadge priority={task.priority} />
-                            <StatusBadge status={task.status} />
-                          </div>
-
-                          <div className="mt-1.5 flex items-center gap-3 text-xs text-zinc-400 flex-wrap">
-                            <CategoryBadge category={task.category} size="sm" />
-                            {task.scheduledStartTime && (
-                              <span className="font-mono text-[11px] text-zinc-300">
-                                @{task.scheduledStartTime}
-                              </span>
-                            )}
-                            <span className="font-mono text-[11px] text-zinc-300">
-                              Planned: {formatDuration(task.estimatedDurationMinutes)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-2 self-end sm:self-center">
-                        {!isTimerActiveForTask ? (
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => startTimer(task.title, task.category, task.id)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/[0.06] px-2.5 py-1 text-xs font-medium text-white hover:border-white/40 hover:bg-white/10"
-                            title="Start Stopwatch"
-                          >
-                            <Play className="h-3 w-3" />
-                            <span>Track</span>
-                          </motion.button>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-lg border border-white/30 bg-white/10 px-2.5 py-1 text-xs font-mono font-bold text-white">
-                            <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
-                            Active
+                            {task.title}
                           </span>
+
+                          {isKeyTarget && (
+                            <span className="rounded-full bg-white text-black px-2 py-0.5 text-[9px] font-black uppercase tracking-wider shadow-sm">
+                              🎯 Key Target
+                            </span>
+                          )}
+
+                          <CategoryBadge category={task.category} size="sm" />
+                          <PriorityBadge priority={task.priority} />
+
+                          {isCompleted ? (
+                            <span className="rounded-full border border-white/30 bg-white/10 px-2 py-0.5 text-[10px] font-mono text-white flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" /> Target Met
+                            </span>
+                          ) : (
+                            <span className="rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-mono text-zinc-400">
+                              Target Pending
+                            </span>
+                          )}
+                        </div>
+
+                        {task.description && (
+                          <p className="text-xs text-zinc-400 line-clamp-1">{task.description}</p>
                         )}
 
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => {
-                            setPreselectedLogTask(task);
-                            setIsLogModalOpen(true);
-                          }}
-                          className="inline-flex items-center gap-1 rounded-lg border border-white/30 bg-white/15 px-2.5 py-1 text-xs font-bold text-white hover:bg-white/25"
-                        >
-                          <Zap className="h-3 w-3 fill-white" />
-                          <span>Log Time</span>
-                        </motion.button>
+                        <div className="flex items-center gap-3 text-xs text-zinc-400 flex-wrap">
+                          <span className="font-mono text-[11px] text-zinc-300">
+                            Planned: {formatDuration(task.estimatedDurationMinutes)}
+                          </span>
+                          {task.scheduledStartTime && (
+                            <span className="font-mono text-[11px] text-zinc-400">
+                              @{task.scheduledStartTime}
+                            </span>
+                          )}
+                          {honestCalc.hasAdjustment && !isCompleted && (
+                            <span
+                              className="font-mono text-[10px] text-zinc-400"
+                              title={honestCalc.explanation}
+                            >
+                              • Honest buffer: {formatDuration(honestCalc.recommendedMinutes)}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </motion.div>
+                    </div>
 
-        {/* Insight of the Day (4 cols) */}
-        <motion.div variants={itemVariants} className="lg:col-span-4">
-          <SpotlightCard className="p-5 h-full flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/10 text-white">
-                    <Sparkles className="h-3.5 w-3.5" />
+                    {/* Right: Quick Action Controls */}
+                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                      {!isTimerRunningOnThis ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() =>
+                              startTimer(task.title, task.category, task.id, false, 'stopwatch')
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-white/15 transition-colors"
+                            title="Start Stopwatch"
+                          >
+                            <Play className="h-3.5 w-3.5" />
+                            <span>Stopwatch</span>
+                          </button>
+                          <button
+                            onClick={() =>
+                              startTimer(task.title, task.category, task.id, false, 'pomodoro', 25)
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] px-2.5 py-1.5 text-xs font-mono text-zinc-300 hover:text-white hover:bg-white/15 transition-colors"
+                            title="Start 25m Pomodoro"
+                          >
+                            <span>25m Pomo</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-mono font-bold text-white shadow-sm">
+                          <span className="h-2 w-2 rounded-full bg-white animate-ping" />
+                          Timer Running
+                        </span>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          setPreselectedLogTask(task);
+                          setIsLogModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition-colors shadow-sm"
+                        title="Log completed time"
+                      >
+                        <Zap className="h-3.5 w-3.5 fill-white" />
+                        <span>Log Time</span>
+                      </button>
+                    </div>
                   </div>
-                  <h3 className="text-sm font-bold text-white tracking-tight">Insight of the Day</h3>
+                </ScrollReveal>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 3: THE ACTIVITY & TO-DO REALITY BALANCE               */}
+      {/* ------------------------------------------------------------- */}
+      <section id="chapter-balance" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="text-center sm:text-left space-y-2">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-6 rounded-full bg-white/40" />
+              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                Chapter 02
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+              The Activity & To-Do Balance
+            </h2>
+            <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+              An honest, objective comparison of your planned activity targets versus your actual completed to-dos and real hours logged.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        {/* 4 Activity Reality Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Card 1: Target Activities Set */}
+          <ScrollReveal mode="inView" delay={0.1} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between text-xs text-zinc-400">
+                  <span className="font-semibold uppercase font-mono tracking-wider">
+                    1. Target Activities
+                  </span>
+                  <ListTodo className="h-4 w-4 text-zinc-400" />
                 </div>
-                <span className="rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-mono text-zinc-400">
-                  Empirical Rule
+                <div className="mt-5 flex items-baseline justify-between">
+                  <span className="font-mono text-3xl font-black text-white">
+                    <AnimatedNumber value={todayTasks.length} />
+                  </span>
+                  <span className="text-xs text-zinc-400 font-mono">
+                    to-do targets set
+                  </span>
+                </div>
+              </div>
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-zinc-400">
+                <span>Key goals</span>
+                <span className="font-bold text-white">
+                  {priorityTargets.length} high priority
                 </span>
               </div>
+            </div>
+          </ScrollReveal>
 
-              <div className="space-y-3">
-                <div className="rounded-xl border border-white/20 bg-white/[0.05] p-3.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white">{activeInsight.title}</span>
-                    <span className="font-mono text-xs font-black text-white">
-                      {activeInsight.metricValue}
+          {/* Card 2: Checked Off & Done */}
+          <ScrollReveal mode="inView" delay={0.22} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between text-xs text-zinc-400">
+                  <span className="font-semibold uppercase font-mono tracking-wider">
+                    2. Checked Off & Done
+                  </span>
+                  <CheckSquare className="h-4 w-4 text-white" />
+                </div>
+                <div className="mt-5 flex items-baseline justify-between">
+                  <span className="font-mono text-3xl font-black text-white">
+                    <AnimatedNumber value={completedCount} />
+                  </span>
+                  <span className="text-xs text-zinc-400 font-mono">
+                    activities completed
+                  </span>
+                </div>
+              </div>
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-zinc-400">
+                <span>Key goals met</span>
+                <span className="font-bold text-white">
+                  {completedPriorityTargets} of {priorityTargets.length} nailed
+                </span>
+              </div>
+            </div>
+          </ScrollReveal>
+
+          {/* Card 3: Target Reality Follow-Through */}
+          <ScrollReveal mode="inView" delay={0.34} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between text-xs text-zinc-400">
+                  <span className="font-semibold uppercase font-mono tracking-wider">
+                    3. Target Reality Rate
+                  </span>
+                  <CheckCircle className="h-4 w-4 text-white" />
+                </div>
+                <div className="mt-5 flex items-baseline justify-between">
+                  <span className="font-mono text-3xl font-black text-white">
+                    <AnimatedNumber value={todayCompletionRate} format="percent" />
+                  </span>
+                  <span className="text-xs text-zinc-400 font-mono">
+                    goal completion
+                  </span>
+                </div>
+              </div>
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-zinc-400">
+                <span>Execution status</span>
+                <span className="font-bold text-white">
+                  {completedCount === todayTasks.length && todayTasks.length > 0
+                    ? 'All targets cleared!'
+                    : `${pendingTargetsCount} remaining`}
+                </span>
+              </div>
+            </div>
+          </ScrollReveal>
+
+          {/* Card 4: Activity Reality Gap */}
+          <ScrollReveal mode="inView" delay={0.46} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between text-xs text-zinc-400">
+                  <span className="font-semibold uppercase font-mono tracking-wider">
+                    4. Activity Gap
+                  </span>
+                  <Crosshair className="h-4 w-4 text-white" />
+                </div>
+                <div className="mt-5 flex items-baseline justify-between">
+                  <span className="font-mono text-3xl font-black text-white">
+                    {pendingTargetsCount === 0 && todayTasks.length > 0
+                      ? 'Zero Gap'
+                      : `${pendingTargetsCount} Left`}
+                  </span>
+                  <span className="text-xs text-zinc-400 font-mono">
+                    {pendingTargetsCount === 0 ? 'Aligned' : 'Pending to-dos'}
+                  </span>
+                </div>
+              </div>
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-zinc-400">
+                <span>Active effort</span>
+                <span className="font-bold text-white">
+                  {formatDuration(todayActualMins)} logged
+                </span>
+              </div>
+            </div>
+          </ScrollReveal>
+        </div>
+
+        {/* Reality Forecast Bar */}
+        {todayTasks.length > 0 && (
+          <ScrollReveal mode="inView" delay={0.2} duration={1.7} yOffset={40}>
+            <div className="crystal-panel rounded-2xl p-4 sm:p-5 backdrop-blur-2xl border border-white/15 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-white text-black flex items-center justify-center font-black">
+                  <Wand2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-bold">
+                    Honest Workday Target Forecast
+                  </div>
+                  <div className="text-sm font-bold text-white">
+                    At your current activity pace, you will complete remaining to-do targets around{' '}
+                    <span className="underline underline-offset-4 font-mono text-white">
+                      {workdayForecast.predictedEndTimeStr}
                     </span>
                   </div>
-                  <p className="mt-2 text-xs leading-relaxed text-zinc-300">
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-white/10 border border-white/20 px-3 py-1 text-xs font-mono text-zinc-200">
+                  {pendingTargetsCount} targets ({formatDuration(workdayForecast.remainingMinutes)}) remaining effort
+                </span>
+              </div>
+            </div>
+          </ScrollReveal>
+        )}
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 4: TO-DO ACTION HUB & QUICK ADD                      */}
+      {/* ------------------------------------------------------------- */}
+      <section id="chapter-tasks" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2">
+                <span className="h-1.5 w-6 rounded-full bg-white/40" />
+                <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                  Chapter 03
+                </span>
+              </div>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+                To-Do Action Hub
+              </h2>
+              <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+                Add priority targets naturally (e.g. &quot;Client review 45m high priority at 2pm&quot;) or pick a 1-tap template to commit immediately.
+              </p>
+            </div>
+          </div>
+        </ScrollReveal>
+
+        {/* 1-Tap Quick Templates */}
+        <ScrollReveal mode="inView" delay={0.1} duration={1.6} yOffset={30}>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+            <span className="text-zinc-500 font-mono text-[11px] whitespace-nowrap">Instant Target Presets:</span>
+            <button
+              onClick={() => applyTemplate('🎯 Ship Critical Milestone', 'Deep Work', 90, 'critical')}
+              className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-white hover:bg-white/20 transition-colors whitespace-nowrap font-bold"
+            >
+              + 🎯 Critical Milestone (90m)
+            </button>
+            <button
+              onClick={() => applyTemplate('Morning Standup & Sync', 'Meetings & Syncs', 15, 'medium')}
+              className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+            >
+              + ⚡ Standup (15m)
+            </button>
+            <button
+              onClick={() => applyTemplate('Deep Focus Architecture Block', 'Deep Work', 90, 'high')}
+              className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+            >
+              + 🧠 Deep Flow (90m)
+            </button>
+            <button
+              onClick={() => applyTemplate('Inbox Zero & Team Comms', 'Admin & Operations', 30, 'medium')}
+              className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+            >
+              + 📬 Inbox Zero (30m)
+            </button>
+            <button
+              onClick={() => applyTemplate('Recharge Walk & Exercise', 'Health & Personal', 30, 'medium')}
+              className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+            >
+              + 🏃 Health & Exercise (30m)
+            </button>
+          </div>
+        </ScrollReveal>
+
+        {/* Quick Natural Language Task Input */}
+        <ScrollReveal mode="inView" delay={0.15} duration={1.8} yOffset={60} blurAmount={10}>
+          <form
+            onSubmit={handleQuickSubmit}
+            className="crystal-panel flex flex-col sm:flex-row items-stretch gap-3 rounded-2xl p-3.5 backdrop-blur-2xl border border-white/20 shadow-xl"
+          >
+            <input
+              type="text"
+              required
+              value={quickTitle}
+              onChange={(e) => handleQuickTitleChange(e.target.value)}
+              placeholder="What is your next goal or target to-do? Try &quot;Deploy API fixes 45m high priority at 2pm&quot;..."
+              className="flex-1 rounded-xl border border-white/10 bg-black/60 px-4 py-3 text-sm text-white placeholder-zinc-500 focus:border-white focus:outline-none transition-colors"
+            />
+
+            <select
+              value={quickCategory}
+              onChange={(e) => setQuickCategory(e.target.value as CategoryType)}
+              className="rounded-xl border border-white/10 bg-black/60 px-3.5 py-2.5 text-xs text-zinc-200 focus:border-white focus:outline-none"
+            >
+              <option value="Deep Work" className="bg-black text-white">Deep Work</option>
+              <option value="Meetings & Syncs" className="bg-black text-white">Meetings & Syncs</option>
+              <option value="Creative & Design" className="bg-black text-white">Creative & Design</option>
+              <option value="Learning & Research" className="bg-black text-white">Learning & Research</option>
+              <option value="Admin & Operations" className="bg-black text-white">Admin & Operations</option>
+              <option value="Health & Personal" className="bg-black text-white">Health & Personal</option>
+            </select>
+
+            <select
+              value={quickPriority}
+              onChange={(e) => setQuickPriority(e.target.value as PriorityType)}
+              className="rounded-xl border border-white/10 bg-black/60 px-3 py-2.5 text-xs font-semibold text-zinc-200 focus:border-white focus:outline-none"
+            >
+              <option value="critical" className="bg-black text-white">Critical Target</option>
+              <option value="high" className="bg-black text-white">High Target</option>
+              <option value="medium" className="bg-black text-white">Medium Target</option>
+              <option value="low" className="bg-black text-white">Low Target</option>
+            </select>
+
+            <select
+              value={quickDuration}
+              onChange={(e) => setQuickDuration(Number(e.target.value))}
+              className="rounded-xl border border-white/10 bg-black/60 px-3.5 py-2.5 text-xs font-mono text-zinc-200 focus:border-white focus:outline-none"
+            >
+              <option value={15} className="bg-black text-white">15m</option>
+              <option value={30} className="bg-black text-white">30m</option>
+              <option value={45} className="bg-black text-white">45m</option>
+              <option value={60} className="bg-black text-white">1 hour</option>
+              <option value={90} className="bg-black text-white">1.5 hours</option>
+              <option value={120} className="bg-black text-white">2 hours</option>
+            </select>
+
+            <button
+              type="submit"
+              className="rounded-xl bg-white px-6 py-2.5 text-xs font-black text-black hover:bg-zinc-100 transition-all shadow-[0_0_15px_rgba(255,255,255,0.3)] shrink-0"
+            >
+              Commit Target
+            </button>
+          </form>
+        </ScrollReveal>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 5: SYNCHRONIZED ACTIVITY FLOW & TIMELINE             */}
+      {/* ------------------------------------------------------------- */}
+      <section id="chapter-timeline" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-6 rounded-full bg-white/40" />
+              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                Chapter 04
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+              Synchronized Activity Flow
+            </h2>
+            <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+              An interactive chronological map contrasting when you intended to execute your target to-dos versus where your hours actually went.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        <ScrollReveal mode="inView" delay={0.15} duration={1.8} yOffset={70} blurAmount={12}>
+          <DayFlowTimeline tasks={todayTasks} logs={todayLogs} selectedDate={selectedDate} />
+        </ScrollReveal>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 6: 14-DAY REALITY WAVE                               */}
+      {/* ------------------------------------------------------------- */}
+      <section id="chapter-wave" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-6 rounded-full bg-white/40" />
+              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                Chapter 05
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+              The 14-Day Reality Wave
+            </h2>
+            <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+              Visualize how your activity targets align with reality over the past 14 days in continuous flow.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        <ScrollReveal mode="inView" delay={0.2} duration={1.9} yOffset={80} blurAmount={12}>
+          <PlannedVsActualChart data={dailyMetrics} />
+        </ScrollReveal>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 7: HELPFUL PERSONAL INSIGHTS & HABITS                */}
+      {/* ------------------------------------------------------------- */}
+      <section id="chapter-insights" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-6 rounded-full bg-white/40" />
+              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                Chapter 06
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+              Goal & Habit Reality Insights
+            </h2>
+            <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+              Real empirical observations derived from your target execution to help you accomplish your daily commitments with calm confidence.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
+          {/* Main Insight Card */}
+          <ScrollReveal mode="inView" delay={0.12} duration={1.8} yOffset={70} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 sm:p-9 backdrop-blur-3xl border border-white/20 shadow-2xl flex flex-col justify-between h-full">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-transparent" />
+
+              <div className="relative z-10 space-y-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-black font-black">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-bold">
+                      Target Execution Pattern
+                    </span>
+                  </div>
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-0.5 text-xs font-mono font-bold text-white">
+                    {activeInsight.metricValue}
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="text-2xl font-bold text-white">{activeInsight.title}</h3>
+                  <p className="mt-2.5 text-sm text-zinc-300 leading-relaxed">
                     {activeInsight.observation}
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-black/60 p-3 text-[11px] text-zinc-400">
-                  <span className="font-semibold text-zinc-200 block mb-0.5 font-mono text-[10px] uppercase">
-                    Empirical Evidence ({activeInsight.observationPeriod}):
+                <div className="rounded-2xl border border-white/10 bg-black/60 p-4 text-xs text-zinc-300 space-y-1.5">
+                  <span className="font-bold text-white uppercase font-mono text-[10px] block">
+                    Actionable Suggestion:
                   </span>
-                  {activeInsight.evidence}
+                  <p className="leading-relaxed">{activeInsight.suggestedExperiment}</p>
                 </div>
+              </div>
 
-                <div className="rounded-xl border border-white/20 bg-white/[0.04] p-3 text-[11px] text-zinc-300">
-                  <span className="font-bold text-white block mb-0.5 font-mono text-[10px] uppercase">
-                    Suggested Tactical Action:
-                  </span>
-                  {activeInsight.suggestedExperiment}
+              <div className="relative z-10 mt-8 pt-4 border-t border-white/10 flex items-center justify-between text-xs">
+                <span className="text-zinc-500">Was this insight helpful?</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => voteInsight(activeInsight.id, 'helpful')}
+                    className="p-2.5 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                    title="Helpful"
+                  >
+                    <ThumbsUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => voteInsight(activeInsight.id, 'unhelpful')}
+                    className="p-2.5 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                    title="Not helpful"
+                  >
+                    <ThumbsDown className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             </div>
+          </ScrollReveal>
 
-            <div className="mt-4 pt-3 border-t border-white/[0.08] flex items-center justify-between text-xs">
-              <span className="text-zinc-500 text-[11px]">Helpful observation?</span>
-              <div className="flex items-center gap-1.5">
+          {/* Habit Building & Consistency Card */}
+          <ScrollReveal mode="inView" delay={0.28} duration={1.8} yOffset={70} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 sm:p-9 backdrop-blur-3xl border border-white/20 shadow-2xl flex flex-col justify-between h-full">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-transparent" />
+
+              <div className="relative z-10 space-y-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-black font-black">
+                    <Flame className="h-4 w-4 fill-black" />
+                  </div>
+                  <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-bold">
+                    Target Consistency Habit
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="text-2xl font-bold text-white">12-Day Tracking Streak</h3>
+                  <p className="mt-2.5 text-sm text-zinc-300 leading-relaxed">
+                    Checking off your activity targets builds deep momentum. Holding a daily reality check keeps goals grounded in real execution rather than wishful thinking.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3.5 pt-2">
+                  <div className="rounded-xl border border-white/10 bg-black/60 p-4">
+                    <span className="text-[10px] font-mono uppercase text-zinc-400 block">Weekly Target Rate</span>
+                    <span className="font-mono text-2xl font-black text-white mt-1 block">85%</span>
+                    <span className="text-[10px] text-zinc-500">To-dos completed</span>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/60 p-4">
+                    <span className="text-[10px] font-mono uppercase text-zinc-400 block">Target Reality</span>
+                    <span className="font-mono text-2xl font-black text-white mt-1 block">Optimal</span>
+                    <span className="text-[10px] text-zinc-500">Commitment caliber</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative z-10 mt-8 pt-4 border-t border-white/10 flex items-center justify-between">
+                <span className="text-xs text-zinc-400">Keep it up!</span>
                 <button
-                  onClick={() => voteInsight(activeInsight.id, 'helpful')}
-                  className="p-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
-                  title="Helpful"
+                  onClick={() => {
+                    setPreselectedLogTask(null);
+                    setIsLogModalOpen(true);
+                  }}
+                  className="rounded-xl bg-white px-5 py-2.5 text-xs font-black text-black hover:bg-zinc-100 transition-all shadow-sm"
                 >
-                  <ThumbsUp className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => voteInsight(activeInsight.id, 'unhelpful')}
-                  className="p-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
-                  title="Not helpful"
-                >
-                  <ThumbsDown className="h-3.5 w-3.5" />
+                  Log an activity now
                 </button>
               </div>
             </div>
-          </SpotlightCard>
-        </motion.div>
-      </div>
-    </motion.div>
+          </ScrollReveal>
+        </div>
+      </section>
+    </div>
   );
 };

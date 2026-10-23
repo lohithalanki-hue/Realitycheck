@@ -32,6 +32,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { CategoryBadge } from '../components/ui/CategoryBadge';
+import { ScrollReveal } from '../components/ui/ScrollReveal';
+import { ScrollStageIndicator, Stage } from '../components/ui/ScrollStageIndicator';
 import { useApp } from '../context/AppContext';
 import {
   calculateCategoryBreakdown,
@@ -41,6 +43,13 @@ import {
   formatDuration,
 } from '../lib/analytics/gapEngine';
 import { CategoryType, Experiment, Insight, Task } from '../types';
+
+const ANALYTICS_STAGES: Stage[] = [
+  { id: 'analytics-hero', number: '01', label: 'Empirical Truth' },
+  { id: 'analytics-metrics', number: '02', label: 'Core Metrics' },
+  { id: 'analytics-accuracy', number: '03', label: 'Estimation Bias' },
+  { id: 'analytics-categories', number: '04', label: 'Category & Patterns' },
+];
 
 export const AnalyticsPage: React.FC = () => {
   const {
@@ -116,7 +125,7 @@ export const AnalyticsPage: React.FC = () => {
   const pieData = [
     { name: 'Accurate (±15%)', value: estimationStats.accurateCount, color: '#FFFFFF' },
     { name: 'Underestimated (>15% over)', value: estimationStats.underestimatedCount, color: 'rgba(255, 255, 255, 0.6)' },
-    { name: 'Overestimated (<15% under)', value: estimationStats.overestimatedCount, color: 'rgba(255, 255, 255, 0.3)' },
+    { name: 'Overestimated (<15% under)', value: estimationStats.overestimatedCount, color: 'rgba(255, 255, 255, 0.25)' },
   ].filter((d) => d.value > 0);
 
   const inspectedTasks = inspectingCategory
@@ -158,446 +167,569 @@ export const AnalyticsPage: React.FC = () => {
   const activeExperiments = experiments.filter((e) => e.status === 'active');
 
   return (
-    <div className="space-y-6 pb-28 animate-fade-in">
-      {/* Header with Sub-Tab Nav */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
-            Reality Analytics & Pattern Lab
-          </h1>
-          <p className="mt-1 text-xs text-zinc-400">
-            Empirical diagnostic metrics and behavioral hypothesis experiments
-          </p>
-        </div>
+    <div className="relative space-y-44 sm:space-y-52 pb-48">
+      {/* Chapter navigation rail */}
+      <ScrollStageIndicator stages={ANALYTICS_STAGES} />
 
-        {/* View Switcher Pill */}
-        <div className="flex rounded-full border border-white/15 bg-white/[0.04] backdrop-blur-xl p-1 self-start sm:self-auto shadow-sm">
-          <button
-            onClick={() => setActiveSubTab('analytics')}
-            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
-              activeSubTab === 'analytics'
-                ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Target className="h-3.5 w-3.5" />
-            <span>Performance Analytics</span>
-          </button>
-          <button
-            onClick={() => setActiveSubTab('patterns')}
-            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
-              activeSubTab === 'patterns'
-                ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <FlaskConical className="h-3.5 w-3.5" />
-            <span>Pattern Lab ({insights.length})</span>
-          </button>
-        </div>
-      </div>
-
-      {activeSubTab === 'analytics' ? (
-        <>
-          {/* Range bar */}
-          <div className="flex items-center justify-between gap-2.5">
-            <span className="text-xs text-zinc-400 font-mono uppercase tracking-wider">
-              Audit Window
-            </span>
-            <div className="flex rounded-full border border-white/15 bg-white/[0.04] p-0.5">
-              {(['7d', '14d', '30d', 'all'] as const).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setDateRange(range)}
-                  className={`rounded-full px-3.5 py-1 text-xs font-semibold uppercase font-mono transition-all ${
-                    dateRange === range
-                      ? 'bg-white text-black font-bold shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-                >
-                  {range}
-                </button>
-              ))}
-            </div>
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 1: HERO & AUDIT HORIZON (Slow Dolby Atmosphere)       */}
+      {/* ------------------------------------------------------------- */}
+      <section id="analytics-hero" className="relative pt-6 sm:pt-16 text-center min-h-[70vh] flex flex-col justify-center">
+        <ScrollReveal mode="inView" duration={1.8} yOffset={40} blurAmount={12}>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.04] px-4 py-1.5 text-xs text-zinc-300 backdrop-blur-2xl mb-6 shadow-sm">
+            <span className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_8px_#fff] animate-pulse" />
+            <span className="font-medium">Diagnostic Audit</span>
+            <span className="text-zinc-500">•</span>
+            <span className="font-mono text-zinc-400">{filteredTasks.length} Commitments Analyzed</span>
           </div>
 
-          {/* Aggregate Metric Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="crystal-panel relative overflow-hidden rounded-2xl p-5 backdrop-blur-2xl">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
-              <div className="relative z-10 text-xs text-zinc-400 font-medium">Net Intention Gap</div>
-              <div className="relative z-10 mt-2 flex items-baseline gap-2">
-                <span className="font-mono text-3xl font-black text-white">
-                  {netGapMinutes > 0 ? `+${formatDuration(netGapMinutes)}` : formatDuration(netGapMinutes)}
-                </span>
-              </div>
-              <div className="relative z-10 mt-2 text-[11px] text-zinc-400">
-                {netGapMinutes > 0 ? 'Total logged time exceeded original schedule' : 'Executed within planned allocation'}
-              </div>
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white max-w-4xl mx-auto leading-[1.08]">
+            See where your hours really go.
+          </h1>
+
+          <p className="mt-6 text-base sm:text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
+            Honest diagnostic metrics discover recurring blind spots between your good intentions and actual execution.
+          </p>
+
+          {/* Sub-tab view toggle pill & Audit window */}
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="inline-flex rounded-full border border-white/20 bg-white/[0.04] p-1.5 backdrop-blur-2xl shadow-xl">
+              <button
+                onClick={() => setActiveSubTab('analytics')}
+                className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all ${
+                  activeSubTab === 'analytics'
+                    ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
+                    : 'text-zinc-400 hover:text-white'
+              }`}
+              >
+                <Target className="h-3.5 w-3.5" />
+                <span>Performance Analytics</span>
+              </button>
+              <button
+                onClick={() => setActiveSubTab('patterns')}
+                className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all ${
+                  activeSubTab === 'patterns'
+                    ? 'bg-white text-black font-black shadow-[0_0_15px_rgba(255,255,255,0.4)]'
+                    : 'text-zinc-400 hover:text-white'
+              }`}
+              >
+                <FlaskConical className="h-3.5 w-3.5" />
+                <span>Pattern Lab ({insights.length})</span>
+              </button>
             </div>
 
-            <div className="crystal-panel relative overflow-hidden rounded-2xl p-5 backdrop-blur-2xl">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
-              <div className="relative z-10 text-xs text-zinc-400 font-medium">Planning Accuracy</div>
-              <div className="relative z-10 mt-2 flex items-baseline gap-2">
-                <span className="font-mono text-3xl font-black text-white">
-                  {overallAccuracy}%
-                </span>
-                <span className="text-xs text-zinc-400">fidelity</span>
+            {activeSubTab === 'analytics' && (
+              <div className="inline-flex items-center rounded-full border border-white/20 bg-white/[0.04] p-1 backdrop-blur-2xl">
+                {(['7d', '14d', '30d', 'all'] as const).map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setDateRange(range)}
+                    className={`rounded-full px-3.5 py-1 text-xs font-semibold uppercase font-mono transition-all ${
+                      dateRange === range
+                        ? 'bg-white text-black font-bold shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {range}
+                  </button>
+                ))}
               </div>
-              <div className="relative z-10 mt-2 text-[11px] text-zinc-400">
+            )}
+          </div>
+        </ScrollReveal>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 2: THE CORE DIAGNOSTIC METRICS                        */}
+      {/* ------------------------------------------------------------- */}
+      <section id="analytics-metrics" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="text-center sm:text-left space-y-2">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-6 rounded-full bg-white/40" />
+              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                Chapter 01
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+              The Big Picture Numbers
+            </h2>
+            <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+              Macro performance across the audited window ({dateRange.toUpperCase()}) measured against empirical reality.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        {/* 4 Staggered Diagnostic Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <ScrollReveal mode="inView" delay={0.1} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase font-mono tracking-wider">
+                  <span>Net Time Gap</span>
+                  <Clock className="h-4 w-4 text-zinc-400" />
+                </div>
+                <div className="mt-5 font-mono text-3xl font-black text-white">
+                  {netGapMinutes > 0 ? `+${formatDuration(netGapMinutes)}` : formatDuration(netGapMinutes)}
+                </div>
+              </div>
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 text-xs text-zinc-400">
+                {netGapMinutes > 0 ? 'Logged hours exceeded schedule' : 'Executed within planned allocation'}
+              </div>
+            </div>
+          </ScrollReveal>
+
+          <ScrollReveal mode="inView" delay={0.22} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase font-mono tracking-wider">
+                  <span>Planning Accuracy</span>
+                  <Target className="h-4 w-4 text-white" />
+                </div>
+                <div className="mt-5 flex items-baseline gap-2">
+                  <span className="font-mono text-3xl font-black text-white">{overallAccuracy}%</span>
+                  <span className="text-xs text-zinc-400">fidelity</span>
+                </div>
+              </div>
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 text-xs text-zinc-400">
                 Across {filteredTasks.length} planned commitments
               </div>
             </div>
+          </ScrollReveal>
 
-            <div className="crystal-panel relative overflow-hidden rounded-2xl p-5 backdrop-blur-2xl">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
-              <div className="relative z-10 text-xs text-zinc-400 font-medium">Estimation Caliber Bias</div>
-              <div className="relative z-10 mt-2 flex items-baseline gap-2">
-                <span className="font-mono text-3xl font-black text-white">
-                  {estimationStats.errorPercent > 0 ? `+${estimationStats.errorPercent}%` : `${estimationStats.errorPercent}%`}
-                </span>
-                <span className="text-xs text-zinc-400 font-mono">
-                  ({estimationStats.avgOverrunMinutes}m / task)
-                </span>
-              </div>
-              <div className="relative z-10 mt-2 text-[11px] text-zinc-400">
-                {estimationStats.underestimatedCount} underestimated vs {estimationStats.accurateCount} calibrated
-              </div>
-            </div>
-
-            <div className="crystal-panel relative overflow-hidden rounded-2xl p-5 backdrop-blur-2xl">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
-              <div className="relative z-10 text-xs text-zinc-400 font-medium">Completion Velocity</div>
-              <div className="relative z-10 mt-2 flex items-baseline gap-2">
-                <span className="font-mono text-3xl font-black text-white">
-                  {completionRate}%
-                </span>
-                <span className="text-xs text-zinc-400">
-                  ({filteredTasks.filter((t) => t.status === 'completed').length} completed)
-                </span>
-              </div>
-              <div className="relative z-10 mt-2 text-[11px] text-zinc-400">
-                Ratio of eligible commitments executed
-              </div>
-            </div>
-          </div>
-
-          {/* Charts Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            <div className="lg:col-span-7 crystal-panel relative overflow-hidden rounded-2xl p-5 backdrop-blur-2xl">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
-              <div className="relative z-10 flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-sm font-bold text-white tracking-tight">Category Allocation & Gap</h2>
-                  <p className="text-xs text-zinc-400">Planned hours vs actual logged hours per focus domain</p>
-                </div>
-                <span className="text-[11px] text-zinc-400">Click a bar to inspect source tasks</span>
-              </div>
-
-              <div className="relative z-10 h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={categoryBreakdown.map((c) => ({
-                      category: c.category.replace(' & ', ' '),
-                      fullCategory: c.category,
-                      plannedHours: Number((c.plannedMinutes / 60).toFixed(1)),
-                      actualHours: Number((c.actualMinutes / 60).toFixed(1)),
-                    }))}
-                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                    onClick={(e: any) => {
-                      if (e && e.activePayload && e.activePayload.length) {
-                        setInspectingCategory(e.activePayload[0].payload.fullCategory);
-                      }
-                    }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                    <XAxis dataKey="category" stroke="#71717A" fontSize={10} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#71717A" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}h`} />
-                    <Tooltip
-                      formatter={(value: any) => [`${value} hrs`]}
-                      contentStyle={{ backgroundColor: '#000000', borderColor: 'rgba(255,255,255,0.2)', borderRadius: 12, fontSize: 12, color: '#fff' }}
-                    />
-                    <Bar dataKey="plannedHours" name="Planned" fill="rgba(255,255,255,0.4)" radius={[4, 4, 0, 0]} maxBarSize={32} />
-                    <Bar dataKey="actualHours" name="Actual" fill="#FFFFFF" radius={[4, 4, 0, 0]} maxBarSize={32} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {inspectingCategory && (
-                <div className="relative z-10 mt-4 rounded-xl border border-white/20 bg-white/10 p-3 flex items-center justify-between text-xs backdrop-blur-md">
-                  <span className="text-white">
-                    Inspecting: <strong className="text-white underline">{inspectingCategory}</strong> ({inspectedTasks.length} tasks)
-                  </span>
-                  <button
-                    onClick={() => setInspectingCategory(null)}
-                    className="text-zinc-400 hover:text-white underline text-[11px]"
-                  >
-                    Clear inspection
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="lg:col-span-5 crystal-panel relative overflow-hidden rounded-2xl p-5 flex flex-col justify-between backdrop-blur-2xl">
+          <ScrollReveal mode="inView" delay={0.34} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
               <div className="relative z-10">
-                <h2 className="text-sm font-bold text-white tracking-tight">Time Estimation Calibration</h2>
-                <p className="text-xs text-zinc-400">Distribution of forecast accuracy across paired tasks</p>
-
-                <div className="h-52 w-full mt-2">
-                  {pieData.length === 0 ? (
-                    <div className="flex h-full items-center justify-center text-xs text-zinc-500">
-                      Insufficient task-log pairs to calculate distribution
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          dataKey="value"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={50}
-                          outerRadius={75}
-                          paddingAngle={4}
-                        >
-                          {pieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(0,0,0,0.5)" />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(val: any, name: any) => [`${val} tasks`, name]}
-                          contentStyle={{ backgroundColor: '#000000', borderColor: 'rgba(255,255,255,0.2)', borderRadius: 12, fontSize: 12, color: '#fff' }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase font-mono tracking-wider">
+                  <span>Task Follow-Through</span>
+                  <CheckCircle2 className="h-4 w-4 text-white" />
+                </div>
+                <div className="mt-5 flex items-baseline gap-2">
+                  <span className="font-mono text-3xl font-black text-white">{completionRate}%</span>
+                  <span className="text-xs text-zinc-400">completed</span>
                 </div>
               </div>
-
-              <div className="relative z-10 space-y-1.5 border-t border-white/10 pt-3">
-                {pieData.map((entry) => (
-                  <div key={entry.name} className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-2 text-zinc-300">
-                      <span className="h-2 w-2 rounded-full border border-white/20" style={{ backgroundColor: entry.color }} />
-                      {entry.name}
-                    </span>
-                    <span className="font-mono font-bold text-white">{entry.value}</span>
-                  </div>
-                ))}
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 text-xs text-zinc-400">
+                {filteredTasks.filter((t) => t.status === 'completed').length} of {filteredTasks.length} done
               </div>
             </div>
-          </div>
+          </ScrollReveal>
 
-          {/* Weekday Performance */}
-          <div className="crystal-panel relative overflow-hidden rounded-2xl p-5 backdrop-blur-2xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
-            <div className="relative z-10">
-              <h2 className="text-sm font-bold text-white tracking-tight">Weekday Execution Caliber</h2>
-              <p className="text-xs text-zinc-400">Completion rate patterns by day of the week</p>
-
-              <div className="grid grid-cols-7 gap-3 mt-4">
-                {dayPerformance.map((dp) => (
-                  <div
-                    key={dp.day}
-                    className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-center flex flex-col items-center justify-between backdrop-blur-md hover:border-white/25 transition-all"
-                  >
-                    <span className="text-xs font-mono font-semibold text-zinc-400">{dp.day}</span>
-                    <div className="my-2">
-                      <span className="font-mono text-xl font-black text-white">
-                        {dp.completionRate}%
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-zinc-400 font-mono">{dp.taskCount} tasks</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Inspection Table if category clicked */}
-          {inspectingCategory && (
-            <div className="crystal-panel rounded-2xl p-5 animate-slide-up backdrop-blur-2xl">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <CategoryBadge category={inspectingCategory} />
-                  <h3 className="text-sm font-bold text-white">Underlying Source Records</h3>
+          <ScrollReveal mode="inView" delay={0.46} duration={1.8} yOffset={80} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-2xl p-6 backdrop-blur-2xl transition-all duration-300 hover:border-white/30 h-full flex flex-col justify-between shadow-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase font-mono tracking-wider">
+                  <span>Logged Time</span>
+                  <Zap className="h-4 w-4 text-white" />
                 </div>
-                <button
-                  onClick={() => setInspectingCategory(null)}
-                  className="text-xs text-zinc-400 hover:text-white"
-                >
-                  Close
-                </button>
+                <div className="mt-5 font-mono text-3xl font-black text-white">
+                  {formatDuration(totalActualMinutes)}
+                </div>
               </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-white/10 text-[11px] font-mono uppercase text-zinc-400">
-                      <th className="pb-2">Date</th>
-                      <th className="pb-2">Task</th>
-                      <th className="pb-2">Estimated</th>
-                      <th className="pb-2">Actual Recorded</th>
-                      <th className="pb-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {inspectedTasks.map((t) => {
-                      const linkedLog = logs.find((l) => l.taskId === t.id);
-                      return (
-                        <tr key={t.id} className="hover:bg-white/[0.02]">
-                          <td className="py-2.5 font-mono text-zinc-400">{t.plannedDate}</td>
-                          <td className="py-2.5 font-semibold text-white">{t.title}</td>
-                          <td className="py-2.5 font-mono text-zinc-300">
-                            {formatDuration(t.estimatedDurationMinutes)}
-                          </td>
-                          <td className="py-2.5 font-mono font-bold text-white">
-                            {linkedLog ? formatDuration(linkedLog.actualDurationMinutes) : '—'}
-                          </td>
-                          <td className="py-2.5 font-mono text-zinc-400 capitalize">{t.status}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="relative z-10 mt-6 pt-4 border-t border-white/10 text-xs text-zinc-400">
+                Across {filteredLogs.length} verified sessions
               </div>
             </div>
-          )}
-        </>
-      ) : (
-        /* Pattern Lab View */
-        <div className="space-y-6">
-          <div className="crystal-panel relative overflow-hidden rounded-2xl p-4 flex items-start gap-3.5 backdrop-blur-2xl">
-            <Info className="h-5 w-5 shrink-0 text-white mt-0.5" />
-            <div className="space-y-1 text-xs text-zinc-300">
-              <span className="font-bold text-white">Empirical Behavioral Analysis</span>
-              <p className="text-[11px] text-zinc-400 leading-relaxed">
-                Patterns are statistical observations of past planning decisions—never moral labels. Formulate practical experiments to tighten execution calibration.
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 3: ESTIMATION BIAS & DAY-OF-WEEK RHYTHM               */}
+      {/* ------------------------------------------------------------- */}
+      <section id="analytics-accuracy" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-6 rounded-full bg-white/40" />
+              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                Chapter 02
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+              Estimation Bias & Weekly Rhythm
+            </h2>
+            <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+              Understand whether you habitually underestimate complex tasks and which days of the week deliver your highest execution rate.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
+          {/* Pie Chart: Estimation Bias */}
+          <ScrollReveal mode="inView" delay={0.12} duration={1.8} yOffset={70} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 backdrop-blur-3xl border border-white/20 shadow-2xl h-full flex flex-col justify-between">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.07] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-bold">
+                    Estimation Bias Breakdown
+                  </span>
+                  <span className="text-xs text-zinc-400 font-mono">±15% Tolerance</span>
+                </div>
+
+                <div className="h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={85}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} stroke="#000" strokeWidth={2} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#000000',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          borderRadius: '12px',
+                          color: '#fff',
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2 pt-4 border-t border-white/10 text-center">
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-mono text-zinc-400 block">Accurate</span>
+                    <span className="font-mono text-xl font-bold text-white">{estimationStats.accurateCount}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-mono text-zinc-400 block">Underestimated</span>
+                    <span className="font-mono text-xl font-bold text-white">{estimationStats.underestimatedCount}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-mono text-zinc-400 block">Overestimated</span>
+                    <span className="font-mono text-xl font-bold text-white">{estimationStats.overestimatedCount}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ScrollReveal>
+
+          {/* Bar Chart: Day of Week Cadence */}
+          <ScrollReveal mode="inView" delay={0.25} duration={1.8} yOffset={70} blurAmount={10}>
+            <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 backdrop-blur-3xl border border-white/20 shadow-2xl h-full flex flex-col justify-between">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.07] via-transparent to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-bold">
+                    Day-of-Week Follow-Through Rate
+                  </span>
+                  <span className="text-xs text-zinc-400 font-mono">% Tasks Completed</span>
+                </div>
+
+                <div className="h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dayPerformance}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <XAxis dataKey="day" stroke="#71717A" tick={{ fill: '#A1A1AA', fontSize: 11 }} />
+                      <YAxis stroke="#71717A" tick={{ fill: '#A1A1AA', fontSize: 11 }} domain={[0, 100]} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#000000',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          borderRadius: '12px',
+                          color: '#fff',
+                        }}
+                      />
+                      <Bar dataKey="completionRate" fill="#FFFFFF" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-white/10 text-xs text-zinc-400 flex items-center justify-between">
+                  <span>Weekly velocity pattern</span>
+                  <span className="font-bold text-white">Peak: Wednesday & Thursday</span>
+                </div>
+              </div>
+            </div>
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* CHAPTER 4: CATEGORY BREAKDOWN & PATTERN LAB                   */}
+      {/* ------------------------------------------------------------- */}
+      <section id="analytics-categories" className="space-y-10 scroll-mt-28">
+        <ScrollReveal mode="inView" duration={1.7} yOffset={50} blurAmount={10}>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2">
+                <span className="h-1.5 w-6 rounded-full bg-white/40" />
+                <span className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold">
+                  Chapter 03
+                </span>
+              </div>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+                Category Drift & Pattern Lab
+              </h2>
+              <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
+                Compare planned vs. actual allocations by category, and launch behavioral experiments to eliminate recurring time leaks.
               </p>
             </div>
+
+            <button
+              onClick={() => setIsNewExpModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-black text-black hover:bg-zinc-100 shadow-[0_0_20px_rgba(255,255,255,0.4)] transition-all self-start sm:self-auto"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Launch Experiment</span>
+            </button>
           </div>
+        </ScrollReveal>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {insights.map((insight) => (
-              <div
-                key={insight.id}
-                className="crystal-panel relative overflow-hidden rounded-2xl p-5 flex flex-col justify-between hover:border-white/30 transition-all backdrop-blur-2xl"
-              >
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.07] via-transparent to-transparent" />
+        {/* Category Table Card */}
+        <ScrollReveal mode="inView" delay={0.15} duration={1.8} yOffset={70} blurAmount={10}>
+          <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 backdrop-blur-3xl border border-white/20 shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-4">Category Allocation Ledger</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-white/10 text-zinc-400 font-mono uppercase">
+                    <th className="pb-3 font-semibold">Category</th>
+                    <th className="pb-3 font-semibold">Planned Time</th>
+                    <th className="pb-3 font-semibold">Actual Logged</th>
+                    <th className="pb-3 font-semibold">Variance Gap</th>
+                    <th className="pb-3 font-semibold">Accuracy</th>
+                    <th className="pb-3 font-semibold text-right">Drilldown</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {categoryBreakdown.map((cat) => (
+                    <tr key={cat.category} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="py-3.5">
+                        <CategoryBadge category={cat.category} size="sm" />
+                      </td>
+                      <td className="py-3.5 font-mono text-zinc-300">{formatDuration(cat.plannedMinutes)}</td>
+                      <td className="py-3.5 font-mono text-white font-bold">{formatDuration(cat.actualMinutes)}</td>
+                      <td className="py-3.5 font-mono">
+                        <span
+                          className={`rounded px-2 py-0.5 text-[11px] font-bold ${
+                            cat.gapMinutes > 30
+                              ? 'bg-white/10 text-white border border-white/20'
+                              : 'text-zinc-400'
+                          }`}
+                        >
+                          {cat.gapMinutes > 0 ? `+${formatDuration(cat.gapMinutes)}` : formatDuration(cat.gapMinutes)}
+                        </span>
+                      </td>
+                      <td className="py-3.5 font-mono font-bold text-white">{cat.accuracy}%</td>
+                      <td className="py-3.5 text-right">
+                        <button
+                          onClick={() => setInspectingCategory(cat.category)}
+                          className="text-xs text-zinc-400 hover:text-white underline underline-offset-4 transition-colors"
+                        >
+                          Inspect Tasks
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </ScrollReveal>
 
-                <div className="relative z-10 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold uppercase text-white">
-                          PATTERN
-                        </span>
-                        <span className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-mono font-bold uppercase text-white">
-                          {insight.confidence} Confidence
-                        </span>
+        {/* Pattern Lab Experiments Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
+          {insights.map((insight, idx) => (
+            <ScrollReveal
+              key={insight.id}
+              mode="inView"
+              delay={0.12 * (idx + 1)}
+              duration={1.8}
+              yOffset={70}
+              blurAmount={10}
+            >
+              <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 backdrop-blur-3xl border border-white/20 shadow-2xl flex flex-col justify-between h-full">
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-transparent" />
+                <div className="relative z-10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-white text-black font-black">
+                        <Sparkles className="h-4 w-4" />
                       </div>
-                      <h3 className="mt-1 text-sm font-bold text-white">{insight.title}</h3>
-                    </div>
-
-                    {insight.metricValue && (
-                      <span className="rounded-xl border border-white/20 bg-white/10 px-2.5 py-1 font-mono text-xs font-bold text-white">
-                        {insight.metricValue}
+                      <span className="text-xs font-mono uppercase text-zinc-400 font-bold">
+                        Observed Pattern
                       </span>
-                    )}
+                    </div>
+                    <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-0.5 text-xs font-mono font-bold text-white">
+                      {insight.metricValue}
+                    </span>
                   </div>
 
-                  <div className="rounded-xl border border-white/10 bg-black/50 p-3 text-xs leading-relaxed text-zinc-300">
-                    <span className="font-semibold text-zinc-400 uppercase text-[10px] font-mono block mb-1">
-                      OBSERVATION
-                    </span>
-                    {insight.observation}
+                  <div>
+                    <h4 className="text-xl font-bold text-white">{insight.title}</h4>
+                    <p className="mt-2 text-xs text-zinc-300 leading-relaxed">{insight.observation}</p>
                   </div>
 
-                  <div className="rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-zinc-400">
-                    <span className="font-semibold text-zinc-400 uppercase text-[10px] font-mono block mb-1">
-                      EMPIRICAL EVIDENCE ({insight.observationPeriod})
+                  <div className="rounded-2xl border border-white/10 bg-black/60 p-4 text-xs text-zinc-300 space-y-1">
+                    <span className="font-bold text-white uppercase font-mono text-[10px] block">
+                      Hypothesis Protocol:
                     </span>
-                    {insight.evidence}
-                  </div>
-
-                  <div className="rounded-xl border border-white/25 bg-white/[0.08] p-3 text-xs text-zinc-200 backdrop-blur-md">
-                    <span className="font-bold text-white uppercase text-[10px] font-mono block mb-1">
-                      SUGGESTED EXPERIMENT
-                    </span>
-                    {insight.suggestedExperiment}
+                    <p>{insight.suggestedExperiment}</p>
                   </div>
                 </div>
 
-                <div className="relative z-10 mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
+                <div className="relative z-10 mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => voteInsight(insight.id, 'helpful')}
-                      className="p-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10"
+                      className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
                       title="Helpful"
                     >
-                      <ThumbsUp className="h-3 w-3" />
+                      <ThumbsUp className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => voteInsight(insight.id, 'unhelpful')}
-                      className="p-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10"
+                      className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
                       title="Not helpful"
                     >
-                      <ThumbsDown className="h-3 w-3" />
+                      <ThumbsDown className="h-3.5 w-3.5" />
                     </button>
                   </div>
 
                   <button
                     onClick={() => handleLaunchFromInsight(insight)}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-1.5 text-xs font-black text-black hover:bg-zinc-100 shadow-[0_0_15px_rgba(255,255,255,0.3)] transition-all"
+                    className="rounded-xl bg-white px-4 py-2 text-xs font-black text-black hover:bg-zinc-100 transition-all shadow-sm"
                   >
-                    <FlaskConical className="h-3.5 w-3.5" />
-                    <span>Run Experiment</span>
+                    Launch as Experiment
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
+            </ScrollReveal>
+          ))}
+        </div>
+      </section>
 
-          {/* Active Experiments */}
-          {activeExperiments.length > 0 && (
-            <div className="crystal-panel rounded-2xl p-5 backdrop-blur-2xl">
-              <h2 className="text-sm font-bold text-white tracking-tight mb-3">Active Behavioral Experiments</h2>
-              <div className="space-y-3">
-                {activeExperiments.map((exp) => (
-                  <div
-                    key={exp.id}
-                    className="rounded-xl border border-white/10 bg-white/[0.03] p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 backdrop-blur-md"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-white shadow-[0_0_6px_#fff] animate-pulse" />
-                        <h3 className="text-xs font-bold text-white">{exp.title}</h3>
-                      </div>
-                      <p className="text-xs text-zinc-300">{exp.hypothesis}</p>
-                    </div>
-
-                    <button
-                      onClick={() =>
-                        updateExperiment({
-                          ...exp,
-                          status: 'completed',
-                          endDate: new Date().toISOString().split('T')[0],
-                          resultOutcome: 'Tested protocol successfully.',
-                        })
-                      }
-                      className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-black text-black hover:bg-zinc-100 shadow-sm self-end md:self-auto"
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>Complete</span>
-                    </button>
-                  </div>
-                ))}
+      {/* Drilldown Category Inspection Modal */}
+      {inspectingCategory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="crystal-panel relative max-w-xl w-full rounded-3xl p-7 backdrop-blur-3xl border border-white/25 shadow-2xl space-y-5 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CategoryBadge category={inspectingCategory} />
+                <h3 className="text-xl font-bold text-white">Task Audit</h3>
               </div>
+              <button
+                onClick={() => setInspectingCategory(null)}
+                className="p-1.5 rounded-xl border border-white/10 text-zinc-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-          )}
+
+            <p className="text-xs text-zinc-400">
+              Auditing all commitments planned under {inspectingCategory} in this window:
+            </p>
+
+            <div className="space-y-2.5">
+              {inspectedTasks.length === 0 ? (
+                <p className="text-xs text-zinc-500 py-4 text-center">No tasks recorded in this category for this window.</p>
+              ) : (
+                inspectedTasks.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/[0.02] text-xs"
+                  >
+                    <div>
+                      <div className="font-bold text-white">{t.title}</div>
+                      <div className="text-[11px] text-zinc-400 font-mono">{t.plannedDate} • {t.status}</div>
+                    </div>
+                    <span className="font-mono font-bold text-white">{formatDuration(t.estimatedDurationMinutes)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Experiment Modal */}
+      {isNewExpModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="crystal-panel relative max-w-lg w-full rounded-3xl p-7 backdrop-blur-3xl border border-white/25 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white">Create New Behavioral Experiment</h3>
+              <button
+                onClick={() => setIsNewExpModalOpen(false)}
+                className="p-1.5 rounded-xl border border-white/10 text-zinc-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleLaunchExperiment} className="space-y-4">
+              <div>
+                <label className="text-xs text-zinc-400 font-semibold block mb-1.5">Experiment Title</label>
+                <input
+                  type="text"
+                  required
+                  value={expTitle}
+                  onChange={(e) => setExpTitle(e.target.value)}
+                  placeholder="e.g. 15-Minute Buffer Protocol for Deep Work"
+                  className="w-full rounded-xl border border-white/15 bg-black/60 px-4 py-2.5 text-xs text-white focus:border-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-400 font-semibold block mb-1.5">Target Hypothesis</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={expHypothesis}
+                  onChange={(e) => setExpHypothesis(e.target.value)}
+                  placeholder="If I pad complex tasks by 15 minutes, will my schedule overrun decrease by 50%?"
+                  className="w-full rounded-xl border border-white/15 bg-black/60 px-4 py-2.5 text-xs text-white focus:border-white focus:outline-none resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-400 font-semibold block mb-1.5">Target Category</label>
+                <select
+                  value={expCategory}
+                  onChange={(e) => setExpCategory(e.target.value as any)}
+                  className="w-full rounded-xl border border-white/15 bg-black/60 px-4 py-2.5 text-xs text-white focus:border-white focus:outline-none"
+                >
+                  <option value="All" className="bg-black text-white">All Categories</option>
+                  <option value="Deep Work" className="bg-black text-white">Deep Work</option>
+                  <option value="Meetings & Syncs" className="bg-black text-white">Meetings & Syncs</option>
+                  <option value="Creative & Design" className="bg-black text-white">Creative & Design</option>
+                  <option value="Learning & Research" className="bg-black text-white">Learning & Research</option>
+                  <option value="Admin & Operations" className="bg-black text-white">Admin & Operations</option>
+                  <option value="Health & Personal" className="bg-black text-white">Health & Personal</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsNewExpModalOpen(false)}
+                  className="rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-zinc-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-white px-5 py-2 text-xs font-black text-black hover:bg-zinc-100 shadow-sm"
+                >
+                  Start Experiment
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

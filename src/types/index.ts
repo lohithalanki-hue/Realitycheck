@@ -61,6 +61,8 @@ export interface ActiveTimerState {
   isRunning: boolean;
   interruptionCount: number;
   isUnplanned: boolean;
+  mode?: 'stopwatch' | 'pomodoro';
+  targetDurationMinutes?: number;
 }
 
 export interface UserPreferences {
@@ -74,6 +76,7 @@ export interface UserPreferences {
   durationUnit: 'minutes' | 'hours';
   activeWorkspace: 'demo' | 'personal';
   overplanningAlertThreshold: number; // e.g. 100% of available time
+  soundEnabled?: boolean;
 }
 
 export interface Insight {
