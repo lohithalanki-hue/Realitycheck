@@ -53,10 +53,16 @@ export interface ToastMessage {
 
 interface AppContextType {
   // Navigation & Workspace
+  isHomePage: boolean;
+  setIsHomePage: (open: boolean) => void;
+  navigateToApp: (tab?: NavigationTab) => void;
+  navigateToHome: () => void;
   activeTab: NavigationTab;
   setActiveTab: (tab: NavigationTab) => void;
   activeWorkspace: 'demo' | 'personal';
   setWorkspace: (ws: 'demo' | 'personal') => void;
+  theme: 'dark' | 'light';
+  toggleTheme: () => void;
   selectedDate: string; // YYYY-MM-DD
   setSelectedDate: (d: string) => void;
   preferences: UserPreferences;
@@ -117,6 +123,8 @@ interface AppContextType {
   setPreselectedLogTask: (t: Task | null) => void;
   isScoreModalOpen: boolean;
   setIsScoreModalOpen: (open: boolean) => void;
+  isSettingsModalOpen: boolean;
+  setIsSettingsModalOpen: (open: boolean) => void;
 
   // Feedback & Reset
   toasts: ToastMessage[];
@@ -130,17 +138,61 @@ const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [preferences, setPreferences] = useState<UserPreferences>(() => loadUserPreferences());
-  const [activeWorkspace, setActiveWorkspace] = useState<'demo' | 'personal'>(
-    preferences.activeWorkspace || 'demo'
-  );
+  const activeWorkspace: 'demo' | 'personal' = 'personal';
+  const setWorkspace = useCallback((_ws: 'demo' | 'personal') => {
+    // Workspace is locked to personal only
+  }, []);
+
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const saved = localStorage.getItem('rc_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch (e) {
+      // fallback
+    }
+    return 'dark';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('rc_theme', theme);
+    } catch (e) {
+      // Ignore
+    }
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
+
+  const [isHomePage, setIsHomePage] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<NavigationTab>('overview');
+
+  const navigateToApp = useCallback((tab?: NavigationTab) => {
+    if (tab) setActiveTab(tab);
+    setIsHomePage(false);
+    soundEffects.playFocusStart(preferences.soundEnabled);
+  }, [preferences.soundEnabled]);
+
+  const navigateToHome = useCallback(() => {
+    setIsHomePage(true);
+  }, []);
   // Default to today's date in local time reference (2026-10-18)
   const [selectedDate, setSelectedDate] = useState<string>('2026-10-18');
 
   // Stored state
-  const [tasks, setTasks] = useState<Task[]>(() => loadTasks(activeWorkspace));
-  const [logs, setLogs] = useState<ActivityLog[]>(() => loadLogs(activeWorkspace));
-  const [experiments, setExperiments] = useState<Experiment[]>(() => loadExperiments(activeWorkspace));
+  const [tasks, setTasks] = useState<Task[]>(() => loadTasks('personal'));
+  const [logs, setLogs] = useState<ActivityLog[]>(() => loadLogs('personal'));
+  const [experiments, setExperiments] = useState<Experiment[]>(() => loadExperiments('personal'));
   const [activeTimer, setActiveTimer] = useState<ActiveTimerState | null>(() => loadActiveTimer());
 
   // Dismissed & voted insights stored per workspace in memory/state
@@ -153,6 +205,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [preselectedLogTask, setPreselectedLogTask] = useState<Task | null>(null);
   const [isScoreModalOpen, setIsScoreModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Toast alerts
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -218,18 +271,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, [activeTimer?.isRunning, preferences.soundEnabled, showToast]);
 
-  // Change workspace
-  const setWorkspace = useCallback((ws: 'demo' | 'personal') => {
-    setActiveWorkspace(ws);
-    const updated = { ...loadUserPreferences(), activeWorkspace: ws };
-    saveUserPreferences(updated);
-    setPreferences(updated);
-    showToast(
-      ws === 'demo' ? 'Switched to Demo Workspace' : 'Switched to Personal Workspace',
-      'info',
-      ws === 'demo' ? 'Exploring 14 days of simulated architecture & deep work data.' : 'Your personal clean slate.'
-    );
-  }, [showToast]);
+
 
   const updatePreferences = useCallback((newPrefs: Partial<UserPreferences>) => {
     setPreferences((prev) => {
@@ -557,10 +599,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [tasks, logs, activeWorkspace, dismissedInsightIds, insightVotes]);
 
   const value = {
+    isHomePage,
+    setIsHomePage,
+    navigateToApp,
+    navigateToHome,
     activeTab,
     setActiveTab,
     activeWorkspace,
     setWorkspace,
+    theme,
+    toggleTheme,
     selectedDate,
     setSelectedDate,
     preferences,
@@ -600,6 +648,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPreselectedLogTask,
     isScoreModalOpen,
     setIsScoreModalOpen,
+    isSettingsModalOpen,
+    setIsSettingsModalOpen,
     toasts,
     showToast,
     dismissToast,

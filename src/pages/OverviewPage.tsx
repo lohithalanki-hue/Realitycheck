@@ -68,6 +68,7 @@ export const OverviewPage: React.FC = () => {
     voteInsight,
     preferences,
     addTask,
+    theme,
   } = useApp();
 
   // Quick task add inline state
@@ -121,7 +122,7 @@ export const OverviewPage: React.FC = () => {
     confidence: 'high' as const,
     observationPeriod: 'Last 14 days',
     dismissed: false,
-    workspace: 'demo' as const,
+    workspace: 'personal' as const,
     type: 'completion_velocity' as const,
     createdAt: new Date().toISOString(),
   };
@@ -219,7 +220,7 @@ export const OverviewPage: React.FC = () => {
             <span className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_8px_#fff] animate-pulse" />
             <span className="font-medium">{formattedDate}</span>
             <span className="text-zinc-500">•</span>
-            <span className="font-mono text-zinc-400">12-Day Streak</span>
+            <span className="font-mono text-zinc-400">Personal Workspace</span>
           </div>
 
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white max-w-4xl mx-auto leading-[1.08]">
@@ -419,7 +420,11 @@ export const OverviewPage: React.FC = () => {
                   onClick={() => setTargetFilter('all')}
                   className={`rounded-full px-3 py-1 font-semibold transition-all ${
                     targetFilter === 'all'
-                      ? 'bg-white text-black font-bold shadow-sm'
+                      ? theme === 'light'
+                        ? 'bg-zinc-900 text-white font-bold shadow-sm'
+                        : 'bg-white text-black font-bold shadow-sm'
+                      : theme === 'light'
+                      ? 'border border-zinc-200 bg-zinc-100 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-200'
                       : 'border border-white/15 bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/10'
                   }`}
                 >
@@ -429,7 +434,11 @@ export const OverviewPage: React.FC = () => {
                   onClick={() => setTargetFilter('priority')}
                   className={`rounded-full px-3 py-1 font-semibold transition-all ${
                     targetFilter === 'priority'
-                      ? 'bg-white text-black font-bold shadow-sm'
+                      ? theme === 'light'
+                        ? 'bg-zinc-900 text-white font-bold shadow-sm'
+                        : 'bg-white text-black font-bold shadow-sm'
+                      : theme === 'light'
+                      ? 'border border-zinc-200 bg-zinc-100 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-200'
                       : 'border border-white/15 bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/10'
                   }`}
                 >
@@ -439,7 +448,11 @@ export const OverviewPage: React.FC = () => {
                   onClick={() => setTargetFilter('pending')}
                   className={`rounded-full px-3 py-1 font-semibold transition-all ${
                     targetFilter === 'pending'
-                      ? 'bg-white text-black font-bold shadow-sm'
+                      ? theme === 'light'
+                        ? 'bg-zinc-900 text-white font-bold shadow-sm'
+                        : 'bg-white text-black font-bold shadow-sm'
+                      : theme === 'light'
+                      ? 'border border-zinc-200 bg-zinc-100 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-200'
                       : 'border border-white/15 bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/10'
                   }`}
                 >
@@ -449,7 +462,11 @@ export const OverviewPage: React.FC = () => {
                   onClick={() => setTargetFilter('completed')}
                   className={`rounded-full px-3 py-1 font-semibold transition-all ${
                     targetFilter === 'completed'
-                      ? 'bg-white text-black font-bold shadow-sm'
+                      ? theme === 'light'
+                        ? 'bg-zinc-900 text-white font-bold shadow-sm'
+                        : 'bg-white text-black font-bold shadow-sm'
+                      : theme === 'light'
+                      ? 'border border-zinc-200 bg-zinc-100 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-200'
                       : 'border border-white/15 bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/10'
                   }`}
                 >
@@ -588,14 +605,18 @@ export const OverviewPage: React.FC = () => {
                     </div>
 
                     {/* Right: Quick Action Controls */}
-                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                    <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 w-full sm:w-auto pt-2.5 sm:pt-0 border-t sm:border-0 border-zinc-200/80 dark:border-white/10 justify-start sm:justify-end shrink-0">
                       {!isTimerRunningOnThis ? (
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() =>
                               startTimer(task.title, task.category, task.id, false, 'stopwatch')
                             }
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-white/15 transition-colors"
+                            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                              theme === 'light'
+                                ? 'border-zinc-300 bg-zinc-100 text-zinc-800 hover:bg-zinc-200'
+                                : 'border-white/15 bg-white/[0.04] text-white hover:bg-white/15'
+                            }`}
                             title="Start Stopwatch"
                           >
                             <Play className="h-3.5 w-3.5" />
@@ -605,15 +626,29 @@ export const OverviewPage: React.FC = () => {
                             onClick={() =>
                               startTimer(task.title, task.category, task.id, false, 'pomodoro', 25)
                             }
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] px-2.5 py-1.5 text-xs font-mono text-zinc-300 hover:text-white hover:bg-white/15 transition-colors"
+                            className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-mono transition-colors ${
+                              theme === 'light'
+                                ? 'border-zinc-300 bg-zinc-100 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-200'
+                                : 'border-white/15 bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/15'
+                            }`}
                             title="Start 25m Pomodoro"
                           >
                             <span>25m Pomo</span>
                           </button>
                         </div>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-mono font-bold text-white shadow-sm">
-                          <span className="h-2 w-2 rounded-full bg-white animate-ping" />
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-mono font-bold shadow-sm ${
+                            theme === 'light'
+                              ? 'border-zinc-900 bg-zinc-100 text-zinc-900'
+                              : 'border-white/30 bg-white/15 text-white'
+                          }`}
+                        >
+                          <span
+                            className={`h-2 w-2 rounded-full animate-ping ${
+                              theme === 'light' ? 'bg-zinc-900' : 'bg-white'
+                            }`}
+                          />
                           Timer Running
                         </span>
                       )}
@@ -623,10 +658,14 @@ export const OverviewPage: React.FC = () => {
                           setPreselectedLogTask(task);
                           setIsLogModalOpen(true);
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition-colors shadow-sm"
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-colors shadow-sm ${
+                          theme === 'light'
+                            ? 'border-zinc-900 bg-zinc-900 text-white hover:bg-black'
+                            : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+                        }`}
                         title="Log completed time"
                       >
-                        <Zap className="h-3.5 w-3.5 fill-white" />
+                        <Zap className="h-3.5 w-3.5 fill-current" />
                         <span>Log Time</span>
                       </button>
                     </div>
@@ -927,7 +966,11 @@ export const OverviewPage: React.FC = () => {
 
             <button
               type="submit"
-              className="rounded-xl bg-white px-6 py-2.5 text-xs font-black text-black hover:bg-zinc-100 transition-all shadow-[0_0_15px_rgba(255,255,255,0.3)] shrink-0"
+              className={`rounded-xl px-6 py-2.5 text-xs font-black transition-all shrink-0 ${
+                theme === 'light'
+                  ? 'bg-zinc-900 text-white hover:bg-black shadow-md'
+                  : 'bg-white text-black hover:bg-zinc-100 shadow-[0_0_15px_rgba(255,255,255,0.3)]'
+              }`}
             >
               Commit Target
             </button>
@@ -1082,7 +1125,7 @@ export const OverviewPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <h3 className="text-2xl font-bold text-white">12-Day Tracking Streak</h3>
+                  <h3 className="text-2xl font-bold text-white">Target Execution Discipline</h3>
                   <p className="mt-2.5 text-sm text-zinc-300 leading-relaxed">
                     Checking off your activity targets builds deep momentum. Holding a daily reality check keeps goals grounded in real execution rather than wishful thinking.
                   </p>
@@ -1109,7 +1152,11 @@ export const OverviewPage: React.FC = () => {
                     setPreselectedLogTask(null);
                     setIsLogModalOpen(true);
                   }}
-                  className="rounded-xl bg-white px-5 py-2.5 text-xs font-black text-black hover:bg-zinc-100 transition-all shadow-sm"
+                  className={`rounded-xl px-5 py-2.5 text-xs font-black transition-all shadow-sm ${
+                    theme === 'light'
+                      ? 'bg-zinc-900 text-white hover:bg-black'
+                      : 'bg-white text-black hover:bg-zinc-100'
+                  }`}
                 >
                   Log an activity now
                 </button>

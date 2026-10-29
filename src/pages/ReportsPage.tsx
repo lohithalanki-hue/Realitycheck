@@ -60,6 +60,7 @@ export const ReportsPage: React.FC = () => {
   const [workHoursStart, setWorkHoursStart] = useState(preferences.workHoursStart);
   const [workHoursEnd, setWorkHoursEnd] = useState(preferences.workHoursEnd);
   const [dailyAvailableMinutes, setDailyAvailableMinutes] = useState(preferences.dailyAvailableMinutes);
+  const [confirmClearData, setConfirmClearData] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getWeekDates = (offset: number) => {
@@ -435,7 +436,7 @@ export const ReportsPage: React.FC = () => {
 
         {/* Breakdown table card */}
         <ScrollReveal mode="inView" delay={0.15} duration={1.8} yOffset={70} blurAmount={10}>
-          <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 backdrop-blur-3xl border border-white/20 shadow-2xl">
+          <div className="crystal-panel relative overflow-hidden rounded-3xl p-4 sm:p-7 backdrop-blur-3xl border border-white/20 shadow-2xl">
             <h3 className="text-lg font-bold text-white mb-4">Weekly Time Allocation Ledger</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -569,7 +570,24 @@ export const ReportsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="pt-2 flex justify-end">
+                <div className="pt-2 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDisplayName(preferences.displayName);
+                      setTitle(preferences.title || '');
+                      setWorkHoursStart(preferences.workHoursStart);
+                      setWorkHoursEnd(preferences.workHoursEnd);
+                      setDailyAvailableMinutes(preferences.dailyAvailableMinutes);
+                      showToast('Changes reset to current settings', 'info');
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3.5 py-2 text-xs font-semibold text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                    title="Reset unsaved edits"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Reset Changes</span>
+                  </button>
+
                   <button
                     type="submit"
                     className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-xs font-black text-black hover:bg-zinc-100 transition-all shadow-sm"
@@ -626,30 +644,41 @@ export const ReportsPage: React.FC = () => {
                     Danger Zone
                   </span>
 
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                      onClick={() => {
-                        if (confirm('Reset to standard demo tasks and logs? Current data will be replaced.')) {
-                          resetDemoData();
-                        }
-                      }}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                      <span>Reset Demo Data</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        if (confirm('Permanently clear all tasks and logs? This cannot be undone without a backup file.')) {
-                          clearPersonalData();
-                        }
-                      }}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      <span>Clear All Data</span>
-                    </button>
+                  <div>
+                    {confirmClearData ? (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs">
+                        <span className="text-red-400 font-semibold text-center sm:text-left">
+                          Permanently clear all tasks & logs? Workspace will start clean.
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              clearPersonalData();
+                              setConfirmClearData(false);
+                            }}
+                            className="rounded-xl bg-red-600 px-3.5 py-1.5 font-bold text-white shadow-md hover:bg-red-500 transition-colors"
+                          >
+                            Yes, Clear All
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmClearData(false)}
+                            className="rounded-xl border border-white/20 px-3 py-1.5 text-zinc-400 hover:text-white transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmClearData(true)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-red-500/20 bg-red-500/[0.05] px-4 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/15 hover:border-red-500/40 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Clear All Workspace Data & Start Fresh</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

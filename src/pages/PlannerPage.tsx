@@ -64,6 +64,7 @@ export const PlannerPage: React.FC = () => {
     preferences,
     updateLog,
     deleteLog,
+    theme,
   } = useApp();
 
   // Tab switch between Schedule and Stopwatch/Logs
@@ -564,33 +565,44 @@ export const PlannerPage: React.FC = () => {
                   blurAmount={8}
                 >
                   <div
-                    className={`crystal-panel group relative overflow-hidden rounded-2xl p-5 backdrop-blur-2xl border transition-all duration-300 ${
-                      isCompleted
+                    className={`crystal-panel group relative overflow-hidden rounded-2xl p-4 sm:p-5 backdrop-blur-2xl border transition-all duration-300 ${
+                      theme === 'light'
+                        ? isCompleted
+                          ? 'border-zinc-200 bg-zinc-50/70 opacity-70'
+                          : 'border-zinc-200 bg-white shadow-sm hover:border-zinc-300'
+                        : isCompleted
                         ? 'border-white/10 bg-white/[0.02] opacity-70'
                         : 'border-white/15 bg-white/[0.04] hover:border-white/30'
                     }`}
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4">
                       {/* Left: Task Content */}
-                      <div className="flex items-start gap-4 flex-1 min-w-0">
+                      <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
                         <button
                           onClick={() =>
                             setTaskStatus(task.id, isCompleted ? 'planned' : 'completed')
                           }
                           className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border transition-all ${
                             isCompleted
-                              ? 'border-white bg-white text-black shadow-[0_0_8px_rgba(255,255,255,0.8)]'
+                              ? theme === 'light'
+                                ? 'border-zinc-900 bg-zinc-900 text-white shadow-sm'
+                                : 'border-white bg-white text-black shadow-[0_0_8px_rgba(255,255,255,0.8)]'
+                              : theme === 'light'
+                              ? 'border-zinc-300 bg-zinc-100 hover:border-zinc-500 text-transparent'
                               : 'border-white/20 bg-black/60 hover:border-white text-transparent'
                           }`}
+                          title={isCompleted ? 'Mark incomplete' : 'Mark completed'}
                         >
                           <CheckCircle2 className="h-4 w-4" />
                         </button>
 
                         <div className="space-y-1.5 flex-1 min-w-0">
-                          <div className="flex items-center gap-2.5 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span
-                              className={`text-base font-bold truncate ${
-                                isCompleted ? 'line-through text-zinc-500' : 'text-white'
+                              className={`text-sm sm:text-base font-bold truncate ${
+                                isCompleted
+                                  ? theme === 'light' ? 'line-through text-zinc-400' : 'line-through text-zinc-500'
+                                  : theme === 'light' ? 'text-zinc-900' : 'text-white'
                               }`}
                             >
                               {task.title}
@@ -608,7 +620,11 @@ export const PlannerPage: React.FC = () => {
                                     estimatedDurationMinutes: honestCalc.recommendedMinutes,
                                   })
                                 }
-                                className="inline-flex items-center gap-1 rounded-full border border-white/25 bg-white/10 px-2.5 py-0.5 text-[11px] font-mono text-white hover:bg-white hover:text-black transition-all shadow-sm"
+                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-mono transition-all shadow-sm ${
+                                  theme === 'light'
+                                    ? 'border-zinc-300 bg-zinc-100 text-zinc-800 hover:bg-zinc-900 hover:text-white'
+                                    : 'border-white/25 bg-white/10 text-white hover:bg-white hover:text-black'
+                                }`}
                                 title={`${honestCalc.explanation} Click to update estimate.`}
                               >
                                 <Wand2 className="h-3 w-3" />
@@ -618,25 +634,31 @@ export const PlannerPage: React.FC = () => {
                           </div>
 
                           {task.description && (
-                            <p className="text-xs text-zinc-400 line-clamp-2">{task.description}</p>
+                            <p className={`text-xs line-clamp-2 ${theme === 'light' ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                              {task.description}
+                            </p>
                           )}
 
-                          <div className="flex items-center gap-4 text-xs text-zinc-400 flex-wrap pt-0.5">
-                            <span className="font-mono text-zinc-300 flex items-center gap-1">
-                              <Clock className="h-3 w-3 text-zinc-500" />
+                          <div className={`flex items-center gap-3 text-xs flex-wrap pt-0.5 ${theme === 'light' ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                            <span className={`font-mono flex items-center gap-1 ${theme === 'light' ? 'text-zinc-700' : 'text-zinc-300'}`}>
+                              <Clock className={`h-3 w-3 ${theme === 'light' ? 'text-zinc-500' : 'text-zinc-500'}`} />
                               {formatDuration(task.estimatedDurationMinutes)}
                             </span>
                             {task.scheduledStartTime && (
-                              <span className="font-mono text-zinc-400">
+                              <span className="font-mono">
                                 @ {task.scheduledStartTime}
                               </span>
                             )}
                             {task.tags && task.tags.length > 0 && (
-                              <div className="flex gap-1.5">
+                              <div className="flex gap-1.5 flex-wrap">
                                 {task.tags.map((tag) => (
                                   <span
                                     key={tag}
-                                    className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 text-[10px] text-zinc-400"
+                                    className={`rounded px-1.5 py-0.5 text-[10px] ${
+                                      theme === 'light'
+                                        ? 'bg-zinc-100 border border-zinc-200 text-zinc-600'
+                                        : 'bg-white/5 border border-white/10 text-zinc-400'
+                                    }`}
                                   >
                                     #{tag}
                                   </span>
@@ -647,13 +669,17 @@ export const PlannerPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Right: Actions */}
-                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                      {/* Right: Actions (Mobile responsive wrap preventing horizontal overflow) */}
+                      <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 w-full sm:w-auto pt-2.5 sm:pt-0 border-t sm:border-0 border-zinc-200/80 dark:border-white/10 justify-start sm:justify-end shrink-0">
                         {!isTimerRunning ? (
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => startTimer(task.title, task.category, task.id, false, 'stopwatch')}
-                              className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white hover:bg-white/15 transition-colors"
+                              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 sm:py-2 text-xs font-semibold transition-colors ${
+                                theme === 'light'
+                                  ? 'border-zinc-300 bg-zinc-100 text-zinc-800 hover:bg-zinc-200'
+                                  : 'border-white/15 bg-white/[0.04] text-white hover:bg-white/15'
+                              }`}
                               title="Start live stopwatch"
                             >
                               <Play className="h-3.5 w-3.5" />
@@ -661,15 +687,29 @@ export const PlannerPage: React.FC = () => {
                             </button>
                             <button
                               onClick={() => startTimer(task.title, task.category, task.id, false, 'pomodoro', 25)}
-                              className="inline-flex items-center gap-1 rounded-xl border border-white/15 bg-white/[0.04] px-2.5 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-white/15 transition-colors"
+                              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 sm:py-2 text-xs font-mono transition-colors ${
+                                theme === 'light'
+                                  ? 'border-zinc-300 bg-zinc-100 text-zinc-700 hover:text-zinc-900 hover:bg-zinc-200'
+                                  : 'border-white/15 bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/15'
+                              }`}
                               title="Start 25m Pomodoro"
                             >
                               <span>25m Pomo</span>
                             </button>
                           </div>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/15 px-3 py-2 text-xs font-mono font-bold text-white shadow-sm">
-                            <span className="h-2 w-2 rounded-full bg-white animate-ping" />
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 sm:py-2 text-xs font-mono font-bold shadow-sm ${
+                              theme === 'light'
+                                ? 'border-zinc-900 bg-zinc-100 text-zinc-900'
+                                : 'border-white/30 bg-white/15 text-white'
+                            }`}
+                          >
+                            <span
+                              className={`h-2 w-2 rounded-full animate-ping ${
+                                theme === 'light' ? 'bg-zinc-900' : 'bg-white'
+                              }`}
+                            />
                             Running
                           </span>
                         )}
@@ -679,10 +719,14 @@ export const PlannerPage: React.FC = () => {
                             setPreselectedLogTask(task);
                             setIsLogModalOpen(true);
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-bold text-white hover:bg-white/20 transition-colors shadow-sm"
+                          className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 sm:py-2 text-xs font-bold transition-colors shadow-sm ${
+                            theme === 'light'
+                              ? 'border-zinc-900 bg-zinc-900 text-white hover:bg-black'
+                              : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+                          }`}
                           title="Log activity manually"
                         >
-                          <Zap className="h-3.5 w-3.5 fill-white" />
+                          <Zap className="h-3.5 w-3.5 fill-current" />
                           <span>Log</span>
                         </button>
 
@@ -690,7 +734,11 @@ export const PlannerPage: React.FC = () => {
                           onClick={() => {
                             setPostponingTaskId(task.id);
                           }}
-                          className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                          className={`p-2 rounded-xl border transition-colors ${
+                            theme === 'light'
+                              ? 'border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+                              : 'border-white/10 text-zinc-400 hover:text-white hover:bg-white/10'
+                          }`}
                           title="Postpone to tomorrow"
                         >
                           <MoveRight className="h-3.5 w-3.5" />
@@ -701,7 +749,11 @@ export const PlannerPage: React.FC = () => {
                             setEditingTask(task);
                             setIsTaskModalOpen(true);
                           }}
-                          className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                          className={`p-2 rounded-xl border transition-colors ${
+                            theme === 'light'
+                              ? 'border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+                              : 'border-white/10 text-zinc-400 hover:text-white hover:bg-white/10'
+                          }`}
                           title="Edit Task"
                         >
                           <Edit2 className="h-3.5 w-3.5" />
@@ -709,7 +761,11 @@ export const PlannerPage: React.FC = () => {
 
                         <button
                           onClick={() => deleteTask(task.id)}
-                          className="p-2 rounded-xl border border-white/10 text-zinc-500 hover:text-white hover:bg-white/10 transition-colors"
+                          className={`p-2 rounded-xl border transition-colors ${
+                            theme === 'light'
+                              ? 'border-zinc-200 text-zinc-500 hover:text-red-600 hover:bg-red-50'
+                              : 'border-white/10 text-zinc-500 hover:text-white hover:bg-white/10'
+                          }`}
                           title="Delete Task"
                         >
                           <Trash2 className="h-3.5 w-3.5" />

@@ -492,7 +492,7 @@ export const AnalyticsPage: React.FC = () => {
 
         {/* Category Table Card */}
         <ScrollReveal mode="inView" delay={0.15} duration={1.8} yOffset={70} blurAmount={10}>
-          <div className="crystal-panel relative overflow-hidden rounded-3xl p-7 backdrop-blur-3xl border border-white/20 shadow-2xl">
+          <div className="crystal-panel relative overflow-hidden rounded-3xl p-4 sm:p-7 backdrop-blur-3xl border border-white/20 shadow-2xl">
             <h3 className="text-lg font-bold text-white mb-4">Category Allocation Ledger</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">

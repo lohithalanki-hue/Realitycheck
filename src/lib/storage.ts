@@ -13,15 +13,27 @@ import {
 } from './demoData';
 
 const STORAGE_KEYS = {
-  PREFS: 'rc_user_preferences_v1',
-  DEMO_TASKS: 'rc_demo_tasks_v1',
-  DEMO_LOGS: 'rc_demo_logs_v1',
-  DEMO_EXPERIMENTS: 'rc_demo_experiments_v1',
-  PERSONAL_TASKS: 'rc_personal_tasks_v1',
-  PERSONAL_LOGS: 'rc_personal_logs_v1',
-  PERSONAL_EXPERIMENTS: 'rc_personal_experiments_v1',
-  TIMER: 'rc_active_timer_v1',
+  PREFS: 'rc_user_preferences_v2',
+  PERSONAL_TASKS: 'rc_personal_tasks_v2',
+  PERSONAL_LOGS: 'rc_personal_logs_v2',
+  PERSONAL_EXPERIMENTS: 'rc_personal_experiments_v2',
+  TIMER: 'rc_active_timer_v2',
 };
+
+// Clean up legacy v1 demo data on initial load
+try {
+  if (typeof window !== 'undefined' && !localStorage.getItem('rc_v2_clean_init')) {
+    localStorage.removeItem('rc_personal_tasks_v1');
+    localStorage.removeItem('rc_personal_logs_v1');
+    localStorage.removeItem('rc_personal_experiments_v1');
+    localStorage.removeItem('rc_demo_tasks_v1');
+    localStorage.removeItem('rc_demo_logs_v1');
+    localStorage.removeItem('rc_demo_experiments_v1');
+    localStorage.setItem('rc_v2_clean_init', 'true');
+  }
+} catch (e) {
+  // Ignore localStorage exceptions in restricted contexts
+}
 
 // Simple event dispatcher for storage changes
 const listeners: Set<() => void> = new Set();
@@ -59,29 +71,27 @@ export function saveUserPreferences(prefs: UserPreferences): void {
   }
 }
 
-// Tasks
-export function loadTasks(workspace: 'demo' | 'personal'): Task[] {
-  const key = workspace === 'demo' ? STORAGE_KEYS.DEMO_TASKS : STORAGE_KEYS.PERSONAL_TASKS;
+// Tasks - Starts with empty array (no initial data)
+export function loadTasks(workspace: 'demo' | 'personal' = 'personal'): Task[] {
+  const key = STORAGE_KEYS.PERSONAL_TASKS;
   try {
     const raw = localStorage.getItem(key);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
     }
   } catch (e) {
     console.warn('Failed to parse tasks', e);
   }
 
-  // If demo workspace has no items yet, bootstrap with initial demo dataset
-  if (workspace === 'demo') {
-    const demo = generateDemoTasks();
-    saveTasks('demo', demo);
-    return demo;
-  }
+  // Fresh workspace starts empty
   return [];
 }
 
-export function saveTasks(workspace: 'demo' | 'personal', tasks: Task[]): void {
-  const key = workspace === 'demo' ? STORAGE_KEYS.DEMO_TASKS : STORAGE_KEYS.PERSONAL_TASKS;
+export function saveTasks(workspace: 'demo' | 'personal' = 'personal', tasks: Task[]): void {
+  const key = STORAGE_KEYS.PERSONAL_TASKS;
   try {
     localStorage.setItem(key, JSON.stringify(tasks));
     notify();
@@ -90,28 +100,27 @@ export function saveTasks(workspace: 'demo' | 'personal', tasks: Task[]): void {
   }
 }
 
-// Activity Logs
-export function loadLogs(workspace: 'demo' | 'personal'): ActivityLog[] {
-  const key = workspace === 'demo' ? STORAGE_KEYS.DEMO_LOGS : STORAGE_KEYS.PERSONAL_LOGS;
+// Activity Logs - Starts with empty array (no initial data)
+export function loadLogs(workspace: 'demo' | 'personal' = 'personal'): ActivityLog[] {
+  const key = STORAGE_KEYS.PERSONAL_LOGS;
   try {
     const raw = localStorage.getItem(key);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
     }
   } catch (e) {
     console.warn('Failed to parse logs', e);
   }
 
-  if (workspace === 'demo') {
-    const demo = generateDemoLogs();
-    saveLogs('demo', demo);
-    return demo;
-  }
+  // Fresh workspace starts empty
   return [];
 }
 
-export function saveLogs(workspace: 'demo' | 'personal', logs: ActivityLog[]): void {
-  const key = workspace === 'demo' ? STORAGE_KEYS.DEMO_LOGS : STORAGE_KEYS.PERSONAL_LOGS;
+export function saveLogs(workspace: 'demo' | 'personal' = 'personal', logs: ActivityLog[]): void {
+  const key = STORAGE_KEYS.PERSONAL_LOGS;
   try {
     localStorage.setItem(key, JSON.stringify(logs));
     notify();
@@ -120,28 +129,26 @@ export function saveLogs(workspace: 'demo' | 'personal', logs: ActivityLog[]): v
   }
 }
 
-// Experiments
-export function loadExperiments(workspace: 'demo' | 'personal'): Experiment[] {
-  const key = workspace === 'demo' ? STORAGE_KEYS.DEMO_EXPERIMENTS : STORAGE_KEYS.PERSONAL_EXPERIMENTS;
+// Experiments - Starts with empty array (no initial data)
+export function loadExperiments(workspace: 'demo' | 'personal' = 'personal'): Experiment[] {
+  const key = STORAGE_KEYS.PERSONAL_EXPERIMENTS;
   try {
     const raw = localStorage.getItem(key);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
     }
   } catch (e) {
     console.warn('Failed to parse experiments', e);
   }
 
-  if (workspace === 'demo') {
-    const demo = generateDemoExperiments();
-    saveExperiments('demo', demo);
-    return demo;
-  }
   return [];
 }
 
-export function saveExperiments(workspace: 'demo' | 'personal', experiments: Experiment[]): void {
-  const key = workspace === 'demo' ? STORAGE_KEYS.DEMO_EXPERIMENTS : STORAGE_KEYS.PERSONAL_EXPERIMENTS;
+export function saveExperiments(workspace: 'demo' | 'personal' = 'personal', experiments: Experiment[]): void {
+  const key = STORAGE_KEYS.PERSONAL_EXPERIMENTS;
   try {
     localStorage.setItem(key, JSON.stringify(experiments));
     notify();
@@ -185,6 +192,7 @@ export function clearPersonalWorkspace(): void {
   saveTasks('personal', []);
   saveLogs('personal', []);
   saveExperiments('personal', []);
+  saveActiveTimer(null);
 }
 
 export function exportFullDataAsJSON(): string {

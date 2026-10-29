@@ -67,12 +67,12 @@ const InViewReveal: React.FC<ScrollRevealProps> = ({
   children,
   className = '',
   delay = 0,
-  duration = 1.75,
-  yOffset = 50,
-  blurAmount = 10,
-  scaleFrom = 0.94,
-  threshold = 0.15,
-  once = false,
+  duration = 1.2,
+  yOffset = 32,
+  blurAmount = 8,
+  scaleFrom = 0.96,
+  threshold = 0.05,
+  once = true,
   ...props
 }) => {
   return (
@@ -89,7 +89,7 @@ const InViewReveal: React.FC<ScrollRevealProps> = ({
         scale: 1,
         filter: 'blur(0px)',
       }}
-      viewport={{ once, amount: threshold, margin: '0px 0px -40px 0px' }}
+      viewport={{ once: true, amount: threshold, margin: '0px 0px 40px 0px' }}
       transition={{
         duration,
         delay,
@@ -105,14 +105,11 @@ const InViewReveal: React.FC<ScrollRevealProps> = ({
 
 /**
  * Cinematic Scroll-Reveal wrapper for Dolby Atmos & Apple-style dynamic scrolling websites.
- * Defaults to 'inView' for silky smooth, slow weighted arrivals with lens de-blurring.
+ * Once an element appears, it stays permanently visible and doesn't disappear when scrolling up.
  */
 export const ScrollReveal: React.FC<ScrollRevealProps> = ({
   mode = 'inView',
   ...props
 }) => {
-  if (mode === 'scrub') {
-    return <ScrubReveal {...props} />;
-  }
   return <InViewReveal {...props} />;
 };

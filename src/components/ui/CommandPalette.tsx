@@ -8,6 +8,7 @@ import {
   FileText,
   Flame,
   FlaskConical,
+  Home,
   Laptop,
   Moon,
   Plus,
@@ -36,25 +37,34 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
   onClose,
 }) => {
   const {
+    navigateToHome,
     setActiveTab,
     setIsTaskModalOpen,
     setIsLogModalOpen,
     setEditingTask,
     setPreselectedLogTask,
-    activeWorkspace,
-    setWorkspace,
-    resetDemoData,
     preferences,
     updatePreferences,
     startTimer,
     toggleSound,
+    theme,
+    toggleTheme,
   } = useApp();
 
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const commands: CommandItem[] = [
-    // 4 Core Navigation Tabs
+    // Navigation
+    {
+      id: 'nav-home',
+      title: 'Go to Home Page',
+      subtitle: 'RealityCheck animated welcome & landing page',
+      icon: Home,
+      shortcut: 'H',
+      action: () => navigateToHome(),
+      category: 'Navigation',
+    },
     {
       id: 'nav-overview',
       title: 'Go to Overview',
@@ -136,19 +146,11 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
       category: 'Preferences',
     },
     {
-      id: 'act-switch-workspace',
-      title: activeWorkspace === 'demo' ? 'Switch to Personal Workspace' : 'Switch to 14d Demo Sandbox',
-      subtitle: `Current active: ${activeWorkspace}`,
-      icon: Laptop,
-      action: () => setWorkspace(activeWorkspace === 'demo' ? 'personal' : 'demo'),
-      category: 'Preferences',
-    },
-    {
-      id: 'act-reset-demo',
-      title: 'Reset Demo Benchmark Dataset',
-      subtitle: 'Restore standard 14 days of simulated data',
-      icon: RotateCcw,
-      action: () => resetDemoData(),
+      id: 'act-toggle-theme',
+      title: theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+      subtitle: theme === 'dark' ? 'Clean frosted titanium appearance' : 'OLED deep black crystalline aesthetic',
+      icon: Sun,
+      action: () => toggleTheme(),
       category: 'Preferences',
     },
   ];
@@ -200,7 +202,9 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/85 backdrop-blur-xl"
+            className={`fixed inset-0 ${
+              theme === 'light' ? 'bg-zinc-900/40 backdrop-blur-md' : 'bg-black/85 backdrop-blur-xl'
+            }`}
           />
 
           {/* Modal Container */}
@@ -209,22 +213,40 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -20 }}
             transition={{ type: 'spring', damping: 28, stiffness: 350 }}
-            className="crystal-panel relative w-full max-w-xl overflow-hidden rounded-3xl p-0 shadow-2xl z-10 backdrop-blur-3xl"
+            className={`relative w-full max-w-xl overflow-hidden rounded-3xl p-0 shadow-2xl z-10 ${
+              theme === 'light'
+                ? 'bg-white border border-zinc-200 text-zinc-900 shadow-[0_25px_60px_rgba(0,0,0,0.12)]'
+                : 'crystal-panel border-white/20 text-white backdrop-blur-3xl'
+            }`}
           >
             {/* Search Input Box */}
-            <div className="flex items-center border-b border-white/10 px-4 py-3.5">
-              <Search className="h-4 w-4 text-white shrink-0 mr-3" />
+            <div
+              className={`flex items-center border-b px-4 py-3.5 ${
+                theme === 'light' ? 'border-zinc-200' : 'border-white/10'
+              }`}
+            >
+              <Search
+                className={`h-4 w-4 shrink-0 mr-3 ${
+                  theme === 'light' ? 'text-zinc-600' : 'text-white'
+                }`}
+              />
               <input
                 type="text"
                 autoFocus
                 placeholder="Type a command or search page (e.g. 'Planner', 'Log', 'Demo')..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none"
+                className={`w-full bg-transparent text-sm focus:outline-none ${
+                  theme === 'light' ? 'text-zinc-900 placeholder-zinc-400' : 'text-white placeholder-zinc-500'
+                }`}
               />
               <button
                 onClick={onClose}
-                className="rounded-xl p-1 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                className={`rounded-xl p-1 transition-colors ${
+                  theme === 'light'
+                    ? 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/10'
+                }`}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -233,7 +255,11 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
             {/* Commands List */}
             <div className="max-h-80 overflow-y-auto p-2 space-y-1">
               {filtered.length === 0 ? (
-                <div className="p-8 text-center text-xs text-zinc-500">
+                <div
+                  className={`p-8 text-center text-xs ${
+                    theme === 'light' ? 'text-zinc-500' : 'text-zinc-500'
+                  }`}
+                >
                   No matching commands found.
                 </div>
               ) : (
@@ -251,7 +277,11 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
                       onMouseEnter={() => setSelectedIndex(idx)}
                       className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left transition-all ${
                         isSelected
-                          ? 'bg-white/15 text-white border border-white/30 shadow-sm'
+                          ? theme === 'light'
+                            ? 'bg-zinc-100 text-zinc-900 border border-zinc-300 shadow-sm'
+                            : 'bg-white/15 text-white border border-white/30 shadow-sm'
+                          : theme === 'light'
+                          ? 'text-zinc-700 hover:bg-zinc-50 border border-transparent'
                           : 'text-zinc-300 hover:bg-white/5 border border-transparent'
                       }`}
                     >
@@ -259,24 +289,42 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
                         <div
                           className={`flex h-8 w-8 items-center justify-center rounded-lg ${
                             isSelected
-                              ? 'bg-white text-black font-bold'
+                              ? theme === 'light'
+                                ? 'bg-zinc-900 text-white font-bold shadow-sm'
+                                : 'bg-white text-black font-bold'
+                              : theme === 'light'
+                              ? 'bg-zinc-100 text-zinc-600'
                               : 'bg-white/5 text-zinc-400'
                           }`}
                         >
                           <Icon className="h-4 w-4" />
                         </div>
                         <div className="min-w-0">
-                          <div className="text-xs font-bold truncate text-white">
+                          <div
+                            className={`text-xs font-bold truncate ${
+                              theme === 'light' ? 'text-zinc-900' : 'text-white'
+                            }`}
+                          >
                             {cmd.title}
                           </div>
-                          <div className="text-[11px] text-zinc-400 truncate">
+                          <div
+                            className={`text-[11px] truncate ${
+                              theme === 'light' ? 'text-zinc-500' : 'text-zinc-400'
+                            }`}
+                          >
                             {cmd.subtitle}
                           </div>
                         </div>
                       </div>
 
                       {cmd.shortcut && (
-                        <kbd className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-mono text-zinc-300 border border-white/10">
+                        <kbd
+                          className={`rounded px-2 py-0.5 text-[10px] font-mono border ${
+                            theme === 'light'
+                              ? 'bg-zinc-100 text-zinc-600 border-zinc-200'
+                              : 'bg-white/10 text-zinc-300 border-white/10'
+                          }`}
+                        >
                           {cmd.shortcut}
                         </kbd>
                       )}
@@ -287,13 +335,21 @@ export const CommandPalette: React.FC<{ isOpen: boolean; onClose: () => void }> 
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between border-t border-white/10 bg-black/60 px-4 py-2.5 text-[11px] text-zinc-400 font-mono">
+            <div
+              className={`flex items-center justify-between border-t px-4 py-2.5 text-[11px] font-mono ${
+                theme === 'light'
+                  ? 'border-zinc-200 bg-zinc-50 text-zinc-600'
+                  : 'border-white/10 bg-black/60 text-zinc-400'
+              }`}
+            >
               <div className="flex items-center gap-3">
                 <span>↑↓ Navigate</span>
                 <span>↵ Select</span>
                 <span>ESC Close</span>
               </div>
-              <span className="text-white font-bold">RealityCheck</span>
+              <span className={`font-bold ${theme === 'light' ? 'text-zinc-900' : 'text-white'}`}>
+                RealityCheck
+              </span>
             </div>
           </motion.div>
         </div>

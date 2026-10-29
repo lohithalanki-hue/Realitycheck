@@ -1,20 +1,14 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React from 'react';
+import { motion } from 'motion/react';
 import {
   AlertCircle,
   BarChart3,
   CalendarDays,
-  ChevronDown,
-  ChevronUp,
-  Clock,
   Compass,
   FileText,
-  Flame,
   Pause,
   Play,
-  RotateCcw,
   Square,
-  Zap,
 } from 'lucide-react';
 import { NavigationTab, useApp } from '../../context/AppContext';
 
@@ -27,12 +21,8 @@ export const DynamicIsland: React.FC = () => {
     resumeTimer,
     addTimerInterruption,
     finishTimerAndSave,
-    activeWorkspace,
-    setWorkspace,
-    realityScore,
+    theme,
   } = useApp();
-
-  const [isExpanded, setIsExpanded] = useState(false);
 
   const tabs: { id: NavigationTab; label: string; icon: React.ElementType }[] = [
     { id: 'overview', label: 'Overview', icon: Compass },
@@ -52,75 +42,23 @@ export const DynamicIsland: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-xl w-[94%] sm:w-auto pointer-events-auto">
+    <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-xl w-[96%] sm:w-auto pointer-events-auto px-1 sm:px-0">
       <motion.div
         layout
         transition={{ type: 'spring', damping: 30, stiffness: 350 }}
-        className={`crystal-panel relative overflow-hidden border border-white/20 bg-black/40 shadow-[0_25px_60px_rgba(0,0,0,0.65),inset_0_1px_2px_rgba(255,255,255,0.35)] backdrop-blur-2xl ring-1 ring-white/10 ${
-          isExpanded ? 'rounded-[40px] p-3' : 'rounded-full p-1.5'
+        className={`crystal-panel relative overflow-hidden rounded-full p-1 sm:p-1.5 backdrop-blur-2xl transition-colors duration-300 ${
+          theme === 'light'
+            ? 'border-black/10 bg-white/85 shadow-[0_20px_45px_rgba(0,0,0,0.1),inset_0_1px_2px_rgba(255,255,255,0.9)] ring-1 ring-black/5'
+            : 'border-white/20 bg-black/40 shadow-[0_25px_60px_rgba(0,0,0,0.65),inset_0_1px_2px_rgba(255,255,255,0.35)] ring-1 ring-white/10'
         }`}
       >
         {/* Specular glass reflection layer */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.12] via-white/[0.03] to-transparent" />
 
-        {/* Expanded Vertical Drawer */}
-        <AnimatePresence>
-          {isExpanded && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-              className="relative z-10 overflow-hidden border-b border-white/[0.1] px-3 pb-3 pt-1 mb-1.5"
-            >
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                {/* Workspace Switcher */}
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <span className="text-[10px] font-mono uppercase text-zinc-400">Workspace:</span>
-                  <div className="flex rounded-full bg-black/50 p-0.5 border border-white/15 flex-1 sm:flex-none">
-                    <button
-                      onClick={() => setWorkspace('demo')}
-                      className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-all ${
-                        activeWorkspace === 'demo'
-                          ? 'bg-white text-black font-bold shadow-sm'
-                          : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      14d Demo
-                    </button>
-                    <button
-                      onClick={() => setWorkspace('personal')}
-                      className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-all ${
-                        activeWorkspace === 'personal'
-                          ? 'bg-white text-black font-bold shadow-sm'
-                          : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Personal
-                    </button>
-                  </div>
-                </div>
-
-                {/* Status indicators */}
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                  <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/[0.08] px-2.5 py-0.5 text-[11px] text-zinc-200">
-                    <Flame className="h-3 w-3 fill-white text-white" />
-                    <span className="font-bold">12d Streak</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-2.5 py-0.5 text-[11px] font-mono text-white">
-                    <span className="font-bold">Score: {realityScore.score}/100</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Dynamic Island Horizontal Dock */}
-        <div className="relative z-10 flex items-center justify-between gap-1 sm:gap-2 px-1">
+        <div className="relative z-10 flex items-center justify-between gap-1 sm:gap-2 px-0.5 sm:px-1">
           {/* 4 Core Tabs with Rounded Full Pill */}
-          <div className="flex items-center gap-1 flex-1 sm:flex-none">
+          <div className="flex items-center gap-0.5 sm:gap-1 flex-1 sm:flex-none justify-around sm:justify-start">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -128,23 +66,52 @@ export const DynamicIsland: React.FC = () => {
               return (
                 <button
                   key={tab.id}
+                  data-stay-dark={isActive ? 'true' : undefined}
+                  data-active={isActive ? 'true' : undefined}
                   onClick={() => {
                     setActiveTab(tab.id);
                     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
                   }}
-                  className={`relative flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors flex-1 sm:flex-none justify-center ${
-                    isActive ? 'text-black font-black' : 'text-zinc-400 hover:text-white'
+                  className={`relative flex items-center gap-1.5 sm:gap-2 rounded-full px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs font-semibold transition-colors flex-1 sm:flex-none justify-center shrink-0 ${
+                    isActive
+                      ? theme === 'light'
+                        ? '!text-white font-black'
+                        : '!text-black font-black'
+                      : theme === 'light'
+                      ? 'text-zinc-600 hover:text-black'
+                      : 'text-zinc-400 hover:text-white'
                   }`}
+                  title={tab.label}
                 >
                   {isActive && (
                     <motion.div
                       layoutId="islandActiveTab"
-                      className="absolute inset-0 rounded-full bg-white text-black shadow-[0_0_16px_rgba(255,255,255,0.4)]"
+                      className={`absolute inset-0 rounded-full z-0 ${
+                        theme === 'light'
+                          ? 'bg-[#111418] shadow-md'
+                          : 'bg-white shadow-[0_0_16px_rgba(255,255,255,0.4)]'
+                      }`}
                       transition={{ type: 'spring', damping: 28, stiffness: 350 }}
                     />
                   )}
-                  <Icon className="h-4 w-4 relative z-10 shrink-0" />
-                  <span className="relative z-10 hidden sm:inline whitespace-nowrap">
+                  <Icon
+                    className={`h-4 w-4 relative z-10 shrink-0 ${
+                      isActive
+                        ? theme === 'light'
+                          ? '!text-white !stroke-white'
+                          : '!text-black !stroke-black'
+                        : ''
+                    }`}
+                  />
+                  <span
+                    className={`relative z-10 hidden sm:inline whitespace-nowrap ${
+                      isActive
+                        ? theme === 'light'
+                          ? '!text-white font-black'
+                          : '!text-black font-black'
+                        : ''
+                    }`}
+                  >
                     {tab.label}
                   </span>
                 </button>
@@ -157,19 +124,43 @@ export const DynamicIsland: React.FC = () => {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="flex items-center gap-2 rounded-full border border-white/30 bg-white/10 pl-3 pr-1.5 py-1 text-xs shadow-md"
+              className={`flex items-center gap-1.5 sm:gap-2 rounded-full border pl-2 sm:pl-3 pr-1 sm:pr-1.5 py-1 text-xs shadow-md shrink-0 ${
+                theme === 'light'
+                  ? 'border-zinc-300 bg-zinc-100 text-zinc-900 shadow-sm'
+                  : 'border-white/30 bg-white/10 text-white'
+              }`}
             >
-              <span className="relative flex h-2 w-2">
+              <span className="relative flex h-2 w-2 shrink-0">
                 {activeTimer.isRunning && (
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                  <span
+                    className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
+                      theme === 'light' ? 'bg-zinc-900' : 'bg-white'
+                    }`}
+                  />
                 )}
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-white shadow-[0_0_6px_#fff]" />
+                <span
+                  className={`relative inline-flex h-2 w-2 rounded-full ${
+                    theme === 'light'
+                      ? 'bg-zinc-900 shadow-[0_0_6px_rgba(0,0,0,0.5)]'
+                      : 'bg-white shadow-[0_0_6px_#fff]'
+                  }`}
+                />
               </span>
 
               {activeTimer.mode === 'pomodoro' && activeTimer.targetDurationMinutes ? (
-                <div className="flex items-center gap-1.5 font-mono text-xs">
-                  <span className="text-[10px] text-zinc-400 uppercase">Focus</span>
-                  <span className="font-bold text-white">
+                <div className="flex items-center gap-1 sm:gap-1.5 font-mono text-xs">
+                  <span
+                    className={`text-[9px] sm:text-[10px] uppercase hidden sm:inline ${
+                      theme === 'light' ? 'text-zinc-600' : 'text-zinc-400'
+                    }`}
+                  >
+                    Focus
+                  </span>
+                  <span
+                    className={`font-bold text-xs ${
+                      theme === 'light' ? 'text-zinc-900' : 'text-white'
+                    }`}
+                  >
                     {(() => {
                       const remainSec = Math.max(
                         0,
@@ -180,16 +171,24 @@ export const DynamicIsland: React.FC = () => {
                   </span>
                 </div>
               ) : (
-                <span className="font-mono font-bold text-white text-xs">
+                <span
+                  className={`font-mono font-bold text-xs ${
+                    theme === 'light' ? 'text-zinc-900' : 'text-white'
+                  }`}
+                >
                   {formatTimerDigits(activeTimer.elapsedSeconds)}
                 </span>
               )}
 
-              <div className="flex items-center gap-1 ml-1">
+              <div className="flex items-center gap-0.5 sm:gap-1 ml-0.5">
                 {activeTimer.isRunning ? (
                   <button
                     onClick={pauseTimer}
-                    className="p-1 rounded-full text-zinc-300 hover:text-white"
+                    className={`p-1 rounded-full ${
+                      theme === 'light'
+                        ? 'text-zinc-700 hover:text-black'
+                        : 'text-zinc-300 hover:text-white'
+                    }`}
                     title="Pause"
                   >
                     <Pause className="h-3 w-3" />
@@ -197,7 +196,9 @@ export const DynamicIsland: React.FC = () => {
                 ) : (
                   <button
                     onClick={resumeTimer}
-                    className="p-1 rounded-full text-white"
+                    className={`p-1 rounded-full ${
+                      theme === 'light' ? 'text-black font-bold' : 'text-white'
+                    }`}
                     title="Resume"
                   >
                     <Play className="h-3 w-3" />
@@ -206,7 +207,11 @@ export const DynamicIsland: React.FC = () => {
 
                 <button
                   onClick={addTimerInterruption}
-                  className="p-1 rounded-full text-zinc-300 hover:text-white"
+                  className={`p-1 rounded-full ${
+                    theme === 'light'
+                      ? 'text-zinc-700 hover:text-black'
+                      : 'text-zinc-300 hover:text-white'
+                  }`}
                   title={`Log Interruption (${activeTimer.interruptionCount})`}
                 >
                   <AlertCircle className="h-3 w-3" />
@@ -214,23 +219,22 @@ export const DynamicIsland: React.FC = () => {
 
                 <button
                   onClick={() => finishTimerAndSave()}
-                  className="p-1 rounded-full text-zinc-300 hover:text-white"
+                  className={`p-1 rounded-full ${
+                    theme === 'light'
+                      ? 'text-zinc-700 hover:text-black'
+                      : 'text-zinc-300 hover:text-white'
+                  }`}
                   title="Finish & Save Session"
                 >
-                  <Square className="h-3 w-3 fill-white" />
+                  <Square
+                    className={`h-3 w-3 ${
+                      theme === 'light' ? 'fill-zinc-900 text-zinc-900' : 'fill-white text-white'
+                    }`}
+                  />
                 </button>
               </div>
             </motion.div>
           )}
-
-          {/* Expand / Collapse Island Drawer Toggle */}
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="rounded-full p-2 text-zinc-400 hover:bg-white/15 hover:text-white transition-colors ml-0.5"
-            title={isExpanded ? 'Collapse Island Tray' : 'Expand Island Tray'}
-          >
-            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-          </button>
         </div>
       </motion.div>
     </div>

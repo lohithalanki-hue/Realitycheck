@@ -14,6 +14,20 @@
     --border-highlight: rgba(255, 255, 255, 0.3);
   }
 
+  html.light,
+  html[data-theme="light"] {
+    --bg-base: #F8F9FA;
+    --surface-1: #FFFFFF;
+    --surface-2: #F1F3F5;
+    --surface-3: #E9ECEF;
+    --accent: #111418;
+    --accent-glow: rgba(0, 0, 0, 0.15);
+    --text-primary: #111418;
+    --text-secondary: #525965;
+    --border-subtle: rgba(0, 0, 0, 0.08);
+    --border-highlight: rgba(0, 0, 0, 0.2);
+  }
+
   html {
     scroll-behavior: smooth;
   }
@@ -25,14 +39,60 @@
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  html.light body,
+  html[data-theme="light"] body {
+    background-color: #F8F9FA !important;
+    color: #111418 !important;
   }
 
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
   }
+
+  .font-brand {
+    font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  .font-monteilga {
+    font-family: 'Monteilga', 'Cormorant Garamond', 'Playfair Display', Didot, 'Bodoni MT', Georgia, serif;
+    letter-spacing: -0.01em;
+    font-feature-settings: "liga" 1, "dlig" 1, "swsh" 1, "calt" 1;
+    font-variant-ligatures: discretionary-ligatures;
+  }
+
+  .font-editorial-subtext {
+    font-family: 'Cormorant Garamond', 'Monteilga', 'Playfair Display', Didot, Georgia, serif;
+    font-style: italic;
+    letter-spacing: 0.01em;
+  }
+
+  .font-germany-script {
+    font-family: 'Germany Script', 'Alex Brush', 'Great Vibes', 'Allura', 'Brush Script MT', cursive;
+    letter-spacing: 0.02em;
+  }
 }
 
-/* Custom sleek dark scrollbar */
+@font-face {
+  font-family: 'Monteilga';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Monteilga'), url('https://fonts.cdnfonts.com/s/117475/MonteilgaPersonalUse-zr0L0.woff') format('woff');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Germany Script';
+  font-style: normal;
+  font-weight: 400;
+  src: url('https://db.onlinewebfonts.com/t/952c2977a49b45bef05bfaf5ac53ec63.woff2') format('woff2'),
+       url('https://db.onlinewebfonts.com/t/952c2977a49b45bef05bfaf5ac53ec63.woff') format('woff');
+  font-display: swap;
+}
+
+/* Custom sleek scrollbar */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -48,9 +108,15 @@
   background: rgba(255, 255, 255, 0.4);
 }
 
+html.light ::-webkit-scrollbar-thumb,
+html[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
 /* Crystalmorphic Glass Panels */
-.crystal-panel {
-  background: rgba(12, 12, 12, 0.65);
+.crystal-panel,
+.glass-card {
+  background: rgba(12, 12, 12, 0.7);
   backdrop-filter: blur(28px) saturate(190%);
   -webkit-backdrop-filter: blur(28px) saturate(190%);
   border: 1px solid rgba(255, 255, 255, 0.13);
@@ -58,21 +124,218 @@
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 0 16px 0 rgba(255, 255, 255, 0.02),
     0 24px 50px -12px rgba(0, 0, 0, 0.95);
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.crystal-panel-hover {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.crystal-panel-hover:hover {
-  border-color: rgba(255, 255, 255, 0.28);
+html.light .crystal-panel,
+html.light .glass-card,
+html[data-theme="light"] .crystal-panel,
+html[data-theme="light"] .glass-card {
+  background: #FFFFFF !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
   box-shadow: 
-    inset 0 1px 2px 0 rgba(255, 255, 255, 0.35),
-    0 25px 60px -10px rgba(0, 0, 0, 0.95),
-    0 0 25px -5px rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 25px -5px rgba(0, 0, 0, 0.06),
+    0 20px 45px -10px rgba(0, 0, 0, 0.08) !important;
 }
 
-/* Crystal Shimmer effect for pure white primary button */
+/* ------------------------------------------------------------- */
+/* LIGHT MODE BUTTON CONTRAST ENGINE - 100% CONTRAST GUARANTEE   */
+/* ------------------------------------------------------------- */
+
+/* 1. Pure Pitch Black Buttons (Enter Workspace, Pure Black Accents):
+   Pure #000000 background with razor-sharp #FFFFFF text and icons */
+html.light button.bg-black,
+html.light [role="button"].bg-black,
+html.light a.bg-black,
+html[data-theme="light"] button.bg-black,
+html[data-theme="light"] [role="button"].bg-black,
+html[data-theme="light"] a.bg-black {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+html.light button.bg-black *,
+html.light [role="button"].bg-black *,
+html.light a.bg-black *,
+html[data-theme="light"] button.bg-black *,
+html[data-theme="light"] [role="button"].bg-black *,
+html[data-theme="light"] a.bg-black * {
+  color: #FFFFFF !important;
+  fill: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+}
+
+/* 2. Dark Slate Primary Action Buttons in Light Mode:
+   Solid #0F141C / #18181B background with crisp #FFFFFF text */
+html.light button.bg-zinc-900,
+html.light button.bg-zinc-950,
+html.light button.bg-zinc-800,
+html.light button[data-stay-dark="true"],
+html.light [role="button"].bg-zinc-900,
+html.light [role="button"].bg-zinc-950,
+html[data-theme="light"] button.bg-zinc-900,
+html[data-theme="light"] button.bg-zinc-950,
+html[data-theme="light"] button.bg-zinc-800,
+html[data-theme="light"] button[data-stay-dark="true"],
+html[data-theme="light"] [role="button"].bg-zinc-900,
+html[data-theme="light"] [role="button"].bg-zinc-950 {
+  background-color: #0F141C !important;
+  color: #FFFFFF !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+html.light button.bg-zinc-900 *,
+html.light button.bg-zinc-950 *,
+html.light button.bg-zinc-800 *,
+html.light button[data-stay-dark="true"] *,
+html.light [role="button"].bg-zinc-900 *,
+html.light [role="button"].bg-zinc-950 *,
+html[data-theme="light"] button.bg-zinc-900 *,
+html[data-theme="light"] button.bg-zinc-950 *,
+html[data-theme="light"] button.bg-zinc-800 *,
+html[data-theme="light"] button[data-stay-dark="true"] *,
+html[data-theme="light"] [role="button"].bg-zinc-900 *,
+html[data-theme="light"] [role="button"].bg-zinc-950 * {
+  color: #FFFFFF !important;
+  fill: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+}
+
+/* 3. Solid White Buttons in Light Mode:
+   High contrast dark text against white pill */
+html.light button.bg-white:not(.text-white),
+html.light a.bg-white:not(.text-white),
+html[data-theme="light"] button.bg-white:not(.text-white),
+html[data-theme="light"] a.bg-white:not(.text-white) {
+  background-color: #FFFFFF !important;
+  color: #0F141C !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light button.bg-white:not(.text-white) *,
+html.light a.bg-white:not(.text-white) *,
+html[data-theme="light"] button.bg-white:not(.text-white) *,
+html[data-theme="light"] a.bg-white:not(.text-white) * {
+  color: #0F141C !important;
+  stroke: #0F141C !important;
+}
+
+/* 4. Text & Heading Contrast in Light Mode */
+html.light h1:not(button *),
+html.light h2:not(button *),
+html.light h3:not(button *),
+html.light h4:not(button *),
+html.light h5:not(button *),
+html.light h6:not(button *),
+html[data-theme="light"] h1:not(button *),
+html[data-theme="light"] h2:not(button *),
+html[data-theme="light"] h3:not(button *),
+html[data-theme="light"] h4:not(button *),
+html[data-theme="light"] h5:not(button *),
+html[data-theme="light"] h6:not(button *) {
+  color: #111418;
+}
+
+html.light p:not(button *),
+html[data-theme="light"] p:not(button *) {
+  color: #4B5565;
+}
+
+/* Ensure zinc text utilities have strong contrast in light mode when NOT inside a dark button */
+html.light :not(button.bg-black):not(button.bg-zinc-900):not(button.bg-zinc-950):not(button.bg-zinc-800) > .text-zinc-400,
+html[data-theme="light"] :not(button.bg-black):not(button.bg-zinc-900):not(button.bg-zinc-950):not(button.bg-zinc-800) > .text-zinc-400 {
+  color: #525965;
+}
+
+html.light .text-zinc-500,
+html[data-theme="light"] .text-zinc-500 {
+  color: #6B7280;
+}
+
+html.light .crystal-panel .font-black.text-white:not(button *),
+html.light .crystal-panel .font-bold.text-white:not(button *),
+html[data-theme="light"] .crystal-panel .font-black.text-white:not(button *),
+html[data-theme="light"] .crystal-panel .font-bold.text-white:not(button *) {
+  color: #111418 !important;
+}
+
+/* 4. Form Inputs in Light Mode */
+html.light input,
+html.light select,
+html.light textarea,
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea {
+  background-color: #FFFFFF !important;
+  color: #111418 !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder,
+html[data-theme="light"] input::placeholder,
+html[data-theme="light"] textarea::placeholder {
+  color: #8C95A3 !important;
+}
+
+/* 5. Border utilities in Light Mode */
+html.light .border-white\/10,
+html.light .border-white\/15,
+html.light .border-white\/20,
+html.light .border-white\/25,
+html.light .border-white\/30,
+html[data-theme="light"] .border-white\/10,
+html[data-theme="light"] .border-white\/15,
+html[data-theme="light"] .border-white\/20,
+html[data-theme="light"] .border-white\/25,
+html[data-theme="light"] .border-white\/30 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light .bg-white\/\[0\.02\],
+html.light .bg-white\/\[0\.04\],
+html.light .bg-white\/\[0\.06\],
+html.light .bg-white\/\[0\.08\],
+html.light .bg-white\/10,
+html[data-theme="light"] .bg-white\/\[0\.02\],
+html[data-theme="light"] .bg-white\/\[0\.04\],
+html[data-theme="light"] .bg-white\/\[0\.06\],
+html[data-theme="light"] .bg-white\/\[0\.08\],
+html[data-theme="light"] .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.035) !important;
+}
+
+/* Dynamic Island Active Tab Pill in Light Mode */
+html.light [data-layoutid="islandActiveTab"],
+html[data-theme="light"] [data-layoutid="islandActiveTab"] {
+  background-color: #111418 !important;
+}
+
+html.light button:has([data-layoutid="islandActiveTab"]),
+html[data-theme="light"] button:has([data-layoutid="islandActiveTab"]) {
+  color: #FFFFFF !important;
+}
+
+html.light button:has([data-layoutid="islandActiveTab"]) span,
+html.light button:has([data-layoutid="islandActiveTab"]) svg,
+html[data-theme="light"] button:has([data-layoutid="islandActiveTab"]) span,
+html[data-theme="light"] button:has([data-layoutid="islandActiveTab"]) svg {
+  color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+}
+
+/* Light grid pattern */
+html.light .bg-grid-pattern,
+html[data-theme="light"] .bg-grid-pattern {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(0, 0, 0, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.035) 1px, transparent 1px) !important;
+}
+
+/* Crystal Shimmer effect */
 @keyframes crystalShimmer {
   0% { transform: translateX(-120%); }
   100% { transform: translateX(220%); }
